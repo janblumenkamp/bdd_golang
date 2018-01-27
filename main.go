@@ -147,51 +147,56 @@ func (h *NodeHash) add(t *Node) {
 	}
 }
 
-type NodeBFS struct {
-	node *Node
+type NodeLabeled struct {
+	*Node
 	level int
 }
 
-func contains(a *Node, list []*NodeBFS) bool {
-	for _, b := range list {
-		if b.node.edge == a.edge {
+type NodeLabeledQueue []*NodeLabeled
+
+func (labeledNodes NodeLabeledQueue) contains(a *Node) bool {
+	for _, b := range labeledNodes {
+		if b.Node == a {
 			return true
 		}
 	}
 	return false
 }
 
-func PrintTree(n *Node) {
-	queue := make([]*NodeBFS, 0)
-	queue = append(queue, &NodeBFS{n, 0})
-	previouslevel := 0
-	for len(queue) > 0 {
-		x := queue[0]
-		if previouslevel != x.level {
-			previouslevel = x.level
+func (n *Node) String() string {
+	if n == nil {
+		return ""
+	}
+	edgeNames := [2]string{"", ""}
+	for index, edge := range n.edge {
+		if edge != nil {
+			edgeNames[index] = edge.name
+		}
+	}
+	return fmt.Sprint(n.name, "(", edgeNames[0], ",", edgeNames[1], ")")
+}
+
+func (n *Node) PrintTree() {
+	processQueue := append(make(NodeLabeledQueue, 0), &NodeLabeled{n, 0})
+
+	previousLevel := 0
+
+	for len(processQueue) > 0 {
+		node := processQueue[0] // Pop
+		processQueue = processQueue[1:]
+
+		if previousLevel < node.level {
+			previousLevel = node.level
 			fmt.Println()
 		}
-		if x.node.final {
-			fmt.Print("final ")
-		}
-		fmt.Print("(", x.node.name, "->")
-		if x.node.edge[0] != nil && x.node.edge[0] == x.node.edge[1] {
-			fmt.Print("10: ", x.node.edge[0].name)
-		} else {
-			if x.node.edge[0] != nil {
-				fmt.Print("0: ", x.node.edge[0].name, " ")
+
+		fmt.Print(node)
+
+		for _, edge := range node.edge {
+			if edge != nil && !processQueue.contains(edge) {
+				new_node := &NodeLabeled{edge, node.level + 1}
+				processQueue = append(processQueue, new_node)
 			}
-			if x.node.edge[1] != nil {
-				fmt.Print("1: ", x.node.edge[1].name)
-			}
-		}
-		fmt.Print(")")
-		queue = queue[1:]
-		if x.node.edge[0] != nil && !contains(x.node.edge[0], queue) {
-			queue = append(queue, &NodeBFS{x.node.edge[0], x.level + 1})
-		}
-		if x.node.edge[1] != nil && !contains(x.node.edge[1], queue) {
-			queue = append(queue, &NodeBFS{x.node.edge[1], x.level + 1})
 		}
 	}
 	fmt.Println()
@@ -308,10 +313,10 @@ func main() {
 	q8 := createNode("q8", q11, q10)
 	q7 := createNode("q7", q8, q9) // start
 
-	PrintTree(q1)
-	PrintTree(q7)
+	q1.PrintTree()
+	q7.PrintTree()
 	//generizationQueue := q1.product(q7)
 	//PrintTree(generizationQueue[0])
 	//PrintTree(minimize(generizationQueue))
-	PrintTree(q1.unify(q7))
+	q1.unify(q7).PrintTree()
 }

@@ -299,7 +299,7 @@ func (first *Node) equals(second *Node) bool {
 	if first == nil && second == nil {
 		return true
 	} else if first != nil && second != nil {
-		return first.edge[0].equals(second.edge[0]) && first.edge[1].equals(second.edge[1])
+		return first.edge[0].equals(second.edge[0]) && first.edge[1].equals(second.edge[1]) && first.name == second.name
 	}
 	return false
 }
@@ -322,19 +322,19 @@ func TestTreeFromPaper() {
 	q8 := createNode("q8", q11, q10)
 	q7 := createNode("q7", q8, q9) // start
 
-	q21 := createNode("", nil, nil)
+	q21 := createNode("q6q13_c", nil, nil)
 	q21.final = true
-	q20 := createNode("", q21, q21)
-	q19 := createNode("", q21, nil)
-	q16 := createNode("", q19, q20)
-	q15 := createNode("", q19, nil)
-	q14 := createNode("", q15, q16)
+	q20 := createNode("q5q11_c", q21, q21)
+	q19 := createNode("q5q12_c", q21, nil)
+	q16 := createNode("q3q9_c", q19, q20)
+	q15 := createNode("q2q8_c", q19, nil)
+	q14 := createNode("q1q7_c", q15, q16)
 
 	unified := q1.unify(q7)
 	unified.PrintTree()
 
 	if !q14.equals(unified) {
-		fmt.Errorf("the generated tree does not equal the minimized tree")
+		fmt.Println("the generated tree does not equal the minimized tree")
 	}
 }
 
@@ -349,11 +349,11 @@ func TestTreeWithFourIsomorph() {
 	q2 := createNode("q2", q4, q5)
 	q1 := createNode("q1", q2, q3)
 
-	q12 := createNode("q12", nil, nil)
+	q12 := createNode("q8q8_c", nil, nil)
 	q12.final = true
-	q11 := createNode("q11", q12, nil)
-	q10 := createNode("q10", q11, q11)
-	q9 := createNode("q9", q10, q10)
+	q11 := createNode("q7q7_c", q12, nil)
+	q10 := createNode("q3q3_c", q11, q11)
+	q9 := createNode("q1q1_c", q10, q10)
 
 	if !q1.equals(q1) {
 		fmt.Println("The tree is not equal to itself")
@@ -363,7 +363,7 @@ func TestTreeWithFourIsomorph() {
 	unified.PrintTree()
 
 	if !q9.equals(unified) {
-		fmt.Errorf("the generated tree does not equal the minimized tree")
+		fmt.Println("the generated tree does not equal the minimized tree")
 	}
 }
 

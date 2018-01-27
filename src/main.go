@@ -79,7 +79,7 @@ func (h *NodeTupleHash) get(a *Node, b *Node) *NodeTuple {
 	if n == nil {
 		return nil
 	}
-	for n.a != a && n.b != b && n.next != nil {
+	for n != nil && n.a != a && n.b != b {
 		n = n.next
 	}
 	return n
@@ -222,19 +222,16 @@ func (n1 *Node) product(n2 *Node) []*Node {
 		queue = queue[1:] // remove
 		for i := 0; i < 2; i++ {
 			if x.a.edge[i] != nil && x.b.edge[i] != nil {
-				succ := NodeTuple{nil, x.a.edge[i], x.b.edge[i], nil}
-
-				if !hash.contains(x.a.edge[i], x.b.edge[i]) {
-					hash.add(&succ)
-					queue = append(queue, &succ)
+				succ := hash.get(x.a.edge[i], x.b.edge[i])
+				if succ == nil {
+					succ = &NodeTuple{nil, x.a.edge[i], x.b.edge[i], nil}
+					hash.add(succ)
+					queue = append(queue, succ)
 					succ.node = createEmptyNode(x.a.edge[i].name + x.b.edge[i].name)
 					succ.node.final = succ.a.final && succ.b.final
 					queueProduct = append(queueProduct, succ.node)
-					x.node.edge[i] = succ.node
-				} else {
-					succ := *hash.get(x.a.edge[i], x.b.edge[i])
-					x.node.edge[i] = succ.node
 				}
+				x.node.edge[i] = succ.node
 			}
 		}
 	}

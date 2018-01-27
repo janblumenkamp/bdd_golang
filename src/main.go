@@ -57,10 +57,16 @@ func (h *NodeTupleHash) hashIndex(t *NodeTuple) int {
 	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
 }
 
-func (h *NodeTupleHash) contains(t *NodeTuple) bool {
-	var el = h.elements[h.hashIndex(t)]
+func hashIndex(a *Node, b *Node) int {
+	index_a := int(uintptr(unsafe.Pointer(a))) >> 6
+	index_b := int(uintptr(unsafe.Pointer(b))) >> 6
+	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
+}
+
+func (h *NodeTupleHash) contains(a *Node, b *Node) bool {
+	el := h.elements[hashIndex(a, b)]
 	for el != nil {
-		if el.a == t.a && el.b == t.b {
+		if el.a == a && el.b == b {
 			return true
 		}
 		el = el.next
@@ -68,16 +74,19 @@ func (h *NodeTupleHash) contains(t *NodeTuple) bool {
 	return false
 }
 
-func (h *NodeTupleHash) get(t *NodeTuple) *NodeTuple {
-	n := h.elements[h.hashIndex(t)]
-	for n.a != t.a && n.b != t.b && n.next != nil {
+func (h *NodeTupleHash) get(a *Node, b *Node) *NodeTuple {
+	n := h.elements[hashIndex(a, b)]
+	if n == nil {
+		return nil
+	}
+	for n.a != a && n.b != b && n.next != nil {
 		n = n.next
 	}
 	return n
 }
 
 func (h *NodeTupleHash) add(t *NodeTuple) {
-	var index = h.hashIndex(t)
+	index := hashIndex(t.a, t.b)
 	if h.elements[index] == nil {
 		h.elements[index] = t
 	} else {
@@ -212,9 +221,10 @@ func (n1 *Node) product(n2 *Node) []*Node {
 		x := queue[0] // head
 		queue = queue[1:] // remove
 		for i := 0; i < 2; i++ {
-			succ := NodeTuple{nil,x.a.edge[i], x.b.edge[i], nil}
-			if succ.a != nil && succ.b != nil {
-				if !hash.contains(&succ) {
+			if x.a.edge[i] != nil && x.b.edge[i] != nil {
+				succ := NodeTuple{nil, x.a.edge[i], x.b.edge[i], nil}
+
+				if !hash.contains(x.a.edge[i], x.b.edge[i]) {
 					hash.add(&succ)
 					queue = append(queue, &succ)
 					succ.node = createEmptyNode(x.a.edge[i].name + x.b.edge[i].name)
@@ -222,7 +232,7 @@ func (n1 *Node) product(n2 *Node) []*Node {
 					queueProduct = append(queueProduct, succ.node)
 					x.node.edge[i] = succ.node
 				} else {
-					succ = *hash.get(&succ)
+					succ := *hash.get(x.a.edge[i], x.b.edge[i])
 					x.node.edge[i] = succ.node
 				}
 			}

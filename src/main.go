@@ -51,12 +51,6 @@ type NodeTupleHash struct {
 	elements [NODEHASH_SIZE]*NodeTuple
 }
 
-func (h *NodeTupleHash) hashIndex(t *NodeTuple) int {
-	var index_a = int(uintptr(unsafe.Pointer(t.a)))
-	var index_b = int(uintptr(unsafe.Pointer(t.b)))
-	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
-}
-
 func hashIndex(a *Node, b *Node) int {
 	index_a := int(uintptr(unsafe.Pointer(a))) >> 6
 	index_b := int(uintptr(unsafe.Pointer(b))) >> 6
@@ -105,6 +99,12 @@ type NodeHash struct {
 	elements [NODEHASH_SIZE]*Node
 }
 
+func (h *NodeHash) hashIndex(t *Node) int {
+	var index_a = int(uintptr(unsafe.Pointer(t.edge[0])))
+	var index_b = int(uintptr(unsafe.Pointer(t.edge[1])))
+	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
+}
+
 func (h *NodeHash) getSameKey(t *Node) *Node {
 	if t == nil {
 		return nil
@@ -123,11 +123,7 @@ func (h *NodeHash) get(t *Node) *Node {
 	return n
 }
 
-func (h *NodeHash) hashIndex(t *Node) int {
-	var index_a = int(uintptr(unsafe.Pointer(t.edge[0])))
-	var index_b = int(uintptr(unsafe.Pointer(t.edge[1])))
-	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
-}
+
 
 func (h *NodeHash) contains(t *Node) bool {
 	var el = h.elements[h.hashIndex(t)]
@@ -244,18 +240,9 @@ func minimize(generizationQueue []*Node) *Node {
 		flag := false
 		q := generizationQueue[i]
 
-		// Ignore child nodes not leading to end (will be removed when parent node is processed)
+		// Ignore child nodes not leading to end
 		if q.edge[0] == nil && q.edge[1] == nil && !q.final {
 			continue
-		}
-
-		// Remove child nodes not leading to final state
-		for j := 0; j < 2; j++ {
-			if q.edge[j] != nil && !q.edge[j].final {
-				if q.edge[j].edge[0] == nil && q.edge[j].edge[1] == nil {
-					q.edge[j] = nil
-				}
-			}
 		}
 
 		// If the current node is in an equivalency class with any other then don't insert into global state

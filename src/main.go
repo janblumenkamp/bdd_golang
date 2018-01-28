@@ -55,7 +55,8 @@ type NodeTupleHash struct {
 func hashIndex(a *Node, b *Node) int {
 	index_a := int(uintptr(unsafe.Pointer(a))) >> 6
 	index_b := int(uintptr(unsafe.Pointer(b))) >> 6
-	return (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
+	result := (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
+	return result
 }
 
 func (h *NodeTupleHash) contains(a *Node, b *Node) bool {
@@ -100,24 +101,24 @@ type NodeHash struct {
 	elements [NODEHASH_SIZE]*Node
 }
 
-func (h *NodeHash) hashIndex(t *Node) int {
-	index_a := uint64(uintptr(unsafe.Pointer(t.edge[0]))) >> 6
-	index_b := uint64(uintptr(unsafe.Pointer(t.edge[1]))) >> 6
-	return int((index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE)
-}
-
 func (h *NodeHash) getSameKey(t *Node) *Node {
 	if t == nil {
 		return nil
 	}
-	return h.elements[h.hashIndex(t)]
+	edgeEquiv := t.edge
+	for i := 0; i < 2; i++ {
+		if edgeEquiv[i] != nil {
+			edgeEquiv[i] = edgeEquiv[i].min_equiv
+		}
+	}
+	return h.elements[hashIndex(edgeEquiv[0], edgeEquiv[1])]
 }
 
 func (h *NodeHash) get(t *Node) *Node {
 	if t == nil {
 		return nil
 	}
-	n := h.elements[h.hashIndex(t)]
+	n := h.elements[hashIndex(t.edge[0], t.edge[1])]
 	for n != nil && n.edge != t.edge {
 		n = n.next
 	}
@@ -125,7 +126,7 @@ func (h *NodeHash) get(t *Node) *Node {
 }
 
 func (h *NodeHash) contains(t *Node) bool {
-	var el = h.elements[h.hashIndex(t)]
+	var el = h.elements[hashIndex(t.edge[0], t.edge[1])]
 	for el != nil {
 		if el.edge == t.edge {
 			return true
@@ -136,7 +137,7 @@ func (h *NodeHash) contains(t *Node) bool {
 }
 
 func (h *NodeHash) add(t *Node) {
-	var index = h.hashIndex(t)
+	var index = hashIndex(t.edge[0], t.edge[1])
 	if h.elements[index] == nil {
 		h.elements[index] = t
 	} else {
@@ -245,28 +246,28 @@ func minimize(generizationQueue []*Node) *Node {
 
 		// If the current node is in an equivalency class with any other then don't insert into global state
 		var n *Node
+		edgeEquiv := q.edge
+		for i := 0; i < 2; i++ {
+			if edgeEquiv[i] != nil {
+				edgeEquiv[i] = edgeEquiv[i].min_equiv
+			}
+		}
 		for n = hashMin.getSameKey(q); n != nil; n = n.next {
-			if n.edge == q.edge && !n.final {
+			if n.edge == edgeEquiv && !n.final {
 				flag = true
-				n = n.min_equiv
 				break
 			}
 		}
 
 		if !flag {
-			edgeEquiv := q.edge
-			for i := 0; i < 2; i++ {
-				if edgeEquiv[i] != nil {
-					edgeEquiv[i] = edgeEquiv[i].min_equiv
-				}
-			}
 			n = createNode(q.name + "_c", edgeEquiv[0], edgeEquiv[1])
 			if i == 0 {
 				return n
 			}
 			n.final = q.final
+			n.min_equiv = q
 
-			hashMin.add(q)
+			hashMin.add(n) // NEEDS to be n, otherwise already merged states would not be considered
 		}
 		q.min_equiv = n
 	}
@@ -419,7 +420,7 @@ func TestNodeHash() {
 
 
 func main() {
-	//TestTreeFromPaper()
+	TestTreeFromPaper()
 	TestTreeWithFourIsomorph()
 	//TestNodeHash()
 }

@@ -59,17 +59,6 @@ func hashIndex(a *Node, b *Node) int {
 	return result
 }
 
-func (h *NodeTupleHash) contains(a *Node, b *Node) bool {
-	el := h.elements[hashIndex(a, b)]
-	for el != nil {
-		if el.a == a && el.b == b {
-			return true
-		}
-		el = el.next
-	}
-	return false
-}
-
 func (h *NodeTupleHash) get(a *Node, b *Node) *NodeTuple {
 	n := h.elements[hashIndex(a, b)]
 	if n == nil {
@@ -112,28 +101,6 @@ func (h *NodeHash) getSameKey(t *Node) *Node {
 		}
 	}
 	return h.elements[hashIndex(edgeEquiv[0], edgeEquiv[1])]
-}
-
-func (h *NodeHash) get(t *Node) *Node {
-	if t == nil {
-		return nil
-	}
-	n := h.elements[hashIndex(t.edge[0], t.edge[1])]
-	for n != nil && n.edge != t.edge {
-		n = n.next
-	}
-	return n
-}
-
-func (h *NodeHash) contains(t *Node) bool {
-	var el = h.elements[hashIndex(t.edge[0], t.edge[1])]
-	for el != nil {
-		if el.edge == t.edge {
-			return true
-		}
-		el = el.next
-	}
-	return false
 }
 
 func (h *NodeHash) add(t *Node) {
@@ -351,76 +318,7 @@ func TestTreeWithFourIsomorph() {
 	}
 }
 
-func TestNodeHash() {
-	q8 := createNode("q8", nil, nil)
-	q7 := createNode("q7", q8, nil)
-	q6 := createNode("q6", q8, nil)
-	q5 := createNode("q5", q8, nil)
-	q4 := createNode("q4", q8, nil)
-	q3 := createNode("q3", q6, q7)
-	q2 := createNode("q2", q4, q5)
-	q1 := createNode("q1", q2, q3)
-
-	hash := NodeHash{}
-	if hash.contains(q1) {
-		fmt.Println("Should not contain any node")
-	}
-	q1Get := hash.get(q1)
-	if q1Get != nil {
-		fmt.Println("Get should not return any node")
-	}
-
-	hash.add(q1)
-	if !hash.contains(q1) {
-		fmt.Println("Should contain q1")
-	}
-
-	q1Get = hash.get(q1)
-	if q1Get != q1 {
-		fmt.Println("Get did not get the required node")
-	}
-
-	hash.add(q4)
-	if !hash.contains(q4) {
-		fmt.Println("Should contain q4")
-	}
-
-	q4Get := hash.get(q4)
-
-	if q4Get != q4 {
-		fmt.Println("Did not get g4")
-	}
-
-	q4Get = hash.getSameKey(q4)
-	if q4Get != q4 {
-		fmt.Println("Did not get g4")
-	}
-
-	if q4Get.next != nil {
-		fmt.Println("There should not be any other node on the same slot")
-	}
-
-	hash.add(q5)
-
-	q4Get = hash.get(q4)
-
-	if q4Get != q4 {
-		fmt.Println("Did not get g4")
-	}
-
-	q4Get = hash.getSameKey(q4)
-	if q4Get != q4 {
-		fmt.Println("Did not get g4")
-	}
-
-	if q4Get.next != q5 {
-		fmt.Println("There should be q5 in the same slot")
-	}
-}
-
-
 func main() {
 	TestTreeFromPaper()
 	TestTreeWithFourIsomorph()
-	//TestNodeHash()
 }

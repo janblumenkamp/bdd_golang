@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"unsafe"
-	//"hash/fnv"
 )
 
 type Node struct {
@@ -75,7 +74,7 @@ func (h *NodeTupleHash) add(t *NodeTuple) {
 	if h.elements[index] == nil {
 		h.elements[index] = t
 	} else {
-		var el = h.elements[index]
+		el := h.elements[index]
 		for el.next != nil {
 			if el.a == t.a && el.b == t.b {
 				return
@@ -90,25 +89,19 @@ type NodeHash struct {
 	elements [NODEHASH_SIZE]*Node
 }
 
-func (h *NodeHash) getSameKey(t *Node) *Node {
-	if t == nil {
+func (h *NodeHash) getSameKey(a *Node, b *Node) *Node {
+	if a == nil && b == nil{
 		return nil
 	}
-	edgeEquiv := t.edge
-	for i := 0; i < 2; i++ {
-		if edgeEquiv[i] != nil {
-			edgeEquiv[i] = edgeEquiv[i].min_equiv
-		}
-	}
-	return h.elements[hashIndex(edgeEquiv[0], edgeEquiv[1])]
+	return h.elements[hashIndex(a, b)]
 }
 
 func (h *NodeHash) add(t *Node) {
-	var index = hashIndex(t.edge[0], t.edge[1])
+	index := hashIndex(t.edge[0], t.edge[1])
 	if h.elements[index] == nil {
 		h.elements[index] = t
 	} else {
-		var el = h.elements[index]
+		el := h.elements[index]
 		for el.next != nil {
 			if el.edge == t.edge {
 				return
@@ -202,6 +195,7 @@ func (n1 *Node) product(n2 *Node) []*Node {
 
 func minimize(generizationQueue []*Node) *Node {
 	hashMin := NodeHash{}
+	var n *Node
 	for i := len(generizationQueue) - 1; i >= 0; i-- {
 		flag := false
 		q := generizationQueue[i]
@@ -212,14 +206,13 @@ func minimize(generizationQueue []*Node) *Node {
 		}
 
 		// If the current node is in an equivalency class with any other then don't insert into global state
-		var n *Node
 		edgeEquiv := q.edge
 		for i := 0; i < 2; i++ {
 			if edgeEquiv[i] != nil {
 				edgeEquiv[i] = edgeEquiv[i].min_equiv
 			}
 		}
-		for n = hashMin.getSameKey(q); n != nil; n = n.next {
+		for n = hashMin.getSameKey(edgeEquiv[0], edgeEquiv[1]); n != nil; n = n.next {
 			if n.edge == edgeEquiv && !n.final {
 				flag = true
 				break
@@ -227,19 +220,15 @@ func minimize(generizationQueue []*Node) *Node {
 		}
 
 		if !flag {
-			n = createNode(q.name + "_c", edgeEquiv[0], edgeEquiv[1])
-			if i == 0 {
-				return n
-			}
+			n = createNode(q.name, edgeEquiv[0], edgeEquiv[1])
 			n.final = q.final
-			n.min_equiv = q
 
 			hashMin.add(n) // NEEDS to be n, otherwise already merged states would not be considered
 		}
 		q.min_equiv = n
 	}
 
-	return nil
+	return n
 }
 
 func (n1 *Node) unify(n2 *Node) *Node {
@@ -273,19 +262,19 @@ func TestTreeFromPaper() {
 	q8 := createNode("q8", q11, q10)
 	q7 := createNode("q7", q8, q9) // start
 
-	q21 := createNode("q6q13_c", nil, nil)
+	q21 := createNode("q6q13", nil, nil)
 	q21.final = true
-	q20 := createNode("q5q11_c", q21, q21)
-	q19 := createNode("q5q12_c", q21, nil)
-	q16 := createNode("q3q9_c", q19, q20)
-	q15 := createNode("q2q8_c", q19, nil)
-	q14 := createNode("q1q7_c", q15, q16)
+	q20 := createNode("q5q11", q21, q21)
+	q19 := createNode("q5q12", q21, nil)
+	q16 := createNode("q3q9", q19, q20)
+	q15 := createNode("q2q8", q19, nil)
+	q14 := createNode("q1q7", q15, q16)
 
 	unified := q1.unify(q7)
-	unified.PrintTree()
 
 	if !q14.equals(unified) {
 		fmt.Println("the generated tree does not equal the minimized tree")
+		unified.PrintTree()
 	}
 }
 
@@ -300,21 +289,21 @@ func TestTreeWithFourIsomorph() {
 	q2 := createNode("q2", q4, q5)
 	q1 := createNode("q1", q2, q3)
 
-	q12 := createNode("q8q8_c", nil, nil)
+	q12 := createNode("q8q8", nil, nil)
 	q12.final = true
-	q11 := createNode("q7q7_c", q12, nil)
-	q10 := createNode("q3q3_c", q11, q11)
-	q9 := createNode("q1q1_c", q10, q10)
+	q11 := createNode("q7q7", q12, nil)
+	q10 := createNode("q3q3", q11, q11)
+	q9 := createNode("q1q1", q10, q10)
 
 	if !q1.equals(q1) {
 		fmt.Println("The tree is not equal to itself")
 	}
 
 	unified := q1.unify(q1)
-	unified.PrintTree()
 
 	if !q9.equals(unified) {
 		fmt.Println("the generated tree does not equal the minimized tree")
+		unified.PrintTree()
 	}
 }
 

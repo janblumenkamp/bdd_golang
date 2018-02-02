@@ -168,7 +168,7 @@ func (n *Node) PrintTree() {
 	fmt.Println()
 }
 
-func (n1 *Node) product(n2 *Node) []*Node {
+func (n1 *Node) operation(n2 *Node, op func(a *Node, b *Node) bool, isFinal func(a *Node, b *Node) bool) []*Node {
 	start := NodeTuple{createNode(n1.name + n2.name, nil, nil),n1, n2, nil}
 	queue := append(make([]*NodeTuple, 0), &start)
 	queueProduct := append(make([]*Node, 0), start.node) // Needed for the minimization
@@ -177,13 +177,13 @@ func (n1 *Node) product(n2 *Node) []*Node {
 		x := queue[0] // head
 		queue = queue[1:] // remove
 		for i := 0; i < 2; i++ {
-			if x.a.edge[i] != nil && x.b.edge[i] != nil {
+			if op(x.a.edge[i], x.b.edge[i]) {
 				succ := hash.get(x.a.edge[i], x.b.edge[i])
 				if succ == nil {
 					succ = &NodeTuple{createEmptyNode(x.a.edge[i].name + x.b.edge[i].name), x.a.edge[i], x.b.edge[i], nil}
 					hash.add(succ)
 					queue = append(queue, succ)
-					succ.node.final = succ.a.final && succ.b.final
+					succ.node.final = isFinal(succ.a, succ.b)
 					queueProduct = append(queueProduct, succ.node)
 				}
 				x.node.edge[i] = succ.node
@@ -237,8 +237,16 @@ func minimize(generizationQueue []*Node) *Node {
 	return n
 }
 
-func (n1 *Node) unify(n2 *Node) *Node {
-	return minimize(n1.product(n2))
+func andOp(a *Node, b *Node) bool {
+	return a != nil && b != nil
+}
+
+func andFin(a *Node, b *Node) bool {
+	return a.final && b.final
+}
+
+func (n1 *Node) and(n2 *Node) *Node {
+	return minimize(n1.operation(n2, andOp, andFin))
 }
 
 func (first *Node) equals(second *Node) bool {
@@ -275,7 +283,7 @@ func TestTreeFromPaper() {
 	q15 := createNode("q2q8", q19, nil)
 	q14 := createNode("q1q7", q15, q16)
 
-	unified := q1.unify(q7)
+	unified := q1.and(q7)
 
 	if !q14.equals(unified) {
 		fmt.Println("the generated tree does not equal the minimized tree")
@@ -302,7 +310,7 @@ func TestTreeWithFourIsomorph() {
 		fmt.Println("The tree is not equal to itself")
 	}
 
-	unified := q1.unify(q1)
+	unified := q1.and(q1)
 
 	if !q9.equals(unified) {
 		fmt.Println("the generated tree does not equal the minimized tree")

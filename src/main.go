@@ -225,6 +225,12 @@ func minimize(generizationQueue []*Node) *Node {
 
 			hashMin.add(n) // NEEDS to be n, otherwise already merged states would not be considered
 		}
+
+		// Merge isomorphic nodes
+		if n.edge[0] != nil && n.edge[0] == n.edge[1] {
+			n = n.edge[0]
+		}
+
 		q.min_equiv = n
 	}
 
@@ -264,9 +270,8 @@ func TestTreeFromPaper() {
 
 	q21 := createNode("q6q13", nil, nil)
 	q21.final = true
-	q20 := createNode("q5q11", q21, q21)
 	q19 := createNode("q5q12", q21, nil)
-	q16 := createNode("q3q9", q19, q20)
+	q16 := createNode("q3q9", q19, q21)
 	q15 := createNode("q2q8", q19, nil)
 	q14 := createNode("q1q7", q15, q16)
 
@@ -289,11 +294,9 @@ func TestTreeWithFourIsomorph() {
 	q2 := createNode("q2", q4, q5)
 	q1 := createNode("q1", q2, q3)
 
-	q12 := createNode("q8q8", nil, nil)
-	q12.final = true
-	q11 := createNode("q7q7", q12, nil)
-	q10 := createNode("q3q3", q11, q11)
-	q9 := createNode("q1q1", q10, q10)
+	q10 := createNode("q8q8", nil, nil)
+	q10.final = true
+	q9 := createNode("q7q7", q10, nil)
 
 	if !q1.equals(q1) {
 		fmt.Println("The tree is not equal to itself")

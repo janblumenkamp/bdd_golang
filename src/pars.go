@@ -26,14 +26,14 @@ type ElementsHash struct {
 	elements [ELEMENTHASH_SIZE]*ElementHash
 }
 
-func hash(s string) int {
+func hashElement(s string) int {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return int(h.Sum32()) % ELEMENTHASH_SIZE
 }
 
 func (h *ElementsHash) get(s string) *Element {
-	n := h.elements[hash(s)]
+	n := h.elements[hashElement(s)]
 	if n == nil {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (h *ElementsHash) get(s string) *Element {
 }
 
 func (h *ElementsHash) add(t *Element) {
-	index := hash(t.name)
+	index := hashElement(t.name)
 	elHashEntry := &ElementHash{t, nil}
 	if h.elements[index] == nil {
 		h.elements[index] = elHashEntry

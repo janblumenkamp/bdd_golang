@@ -226,7 +226,7 @@ func minimize(generizationQueue []*Node) *Node {
 			hashMin.add(n) // NEEDS to be n, otherwise already merged states would not be considered
 		}
 
-		// Merge isomorphic nodes
+		// Merge redundant nodes
 		if n.edge[0] != nil && n.edge[0] == n.edge[1] {
 			n = n.edge[0]
 		}
@@ -247,6 +247,18 @@ func andFin(a *Node, b *Node) bool {
 
 func (n1 *Node) and(n2 *Node) *Node {
 	return minimize(n1.operation(n2, andOp, andFin))
+}
+
+func orOp(a *Node, b *Node) bool {
+	return a != nil || b != nil
+}
+
+func orFin(a *Node, b *Node) bool {
+	return a.final || b.final
+}
+
+func (n1 *Node) or(n2 *Node) *Node {
+	return minimize(n1.operation(n2, orOp, orFin))
 }
 
 func (first *Node) equals(second *Node) bool {

@@ -44,13 +44,17 @@ type NodeTuple struct {
 	node *Node
 	a *Node
 	b *Node
-	next *NodeTuple // relevant for hashing
 }
 
 const NODEHASH_SIZE = 10
 
 type NodeTupleHash struct {
-	elements [NODEHASH_SIZE]*NodeTuple
+	el *NodeTuple
+	next *NodeTupleHash
+}
+
+type NodeTuplesHash struct {
+	elements [NODEHASH_SIZE]*NodeTupleHash
 }
 
 func hashIndex(a *Node, b *Node) int {
@@ -60,30 +64,34 @@ func hashIndex(a *Node, b *Node) int {
 	return result
 }
 
-func (h *NodeTupleHash) get(a *Node, b *Node) *NodeTuple {
+func (h *NodeTuplesHash) get(a *Node, b *Node) *NodeTuple {
 	n := h.elements[hashIndex(a, b)]
 	if n == nil {
 		return nil
 	}
-	for n != nil && n.a != a && n.b != b {
+	for n != nil && n.el.a != a && n.el.b != b {
 		n = n.next
 	}
-	return n
+	if n == nil {
+		return nil
+	}
+	return n.el
 }
 
-func (h *NodeTupleHash) add(t *NodeTuple) {
+func (h *NodeTuplesHash) add(t *NodeTuple) {
+	elNodeTupleEntry := &NodeTupleHash{t, nil}
 	index := hashIndex(t.a, t.b)
 	if h.elements[index] == nil {
-		h.elements[index] = t
+		h.elements[index] = elNodeTupleEntry
 	} else {
-		el := h.elements[index]
-		for el.next != nil {
-			if el.a == t.a && el.b == t.b {
+		hashEl := h.elements[index]
+		for hashEl.next != nil {
+			if hashEl.el.a == t.a && hashEl.el.b == t.b {
 				return
 			}
-			el = el.next
+			hashEl = hashEl.next
 		}
-		el.next = t
+		hashEl.next = elNodeTupleEntry
 	}
 }
 
@@ -171,10 +179,10 @@ func (n *Node) PrintTree() {
 }
 
 func (n1 *Node) operation(n2 *Node, op func(a *Node, b *Node) bool, isFinal func(a *Node, b *Node) bool) []*Node {
-	start := NodeTuple{createNode(n1.name + n2.name, nil, nil),n1, n2, nil}
+	start := NodeTuple{createNode(n1.name + n2.name, nil, nil),n1, n2}
 	queue := append(make([]*NodeTuple, 0), &start)
 	queueProduct := append(make([]*Node, 0), start.node) // Needed for the minimization
-	hash := NodeTupleHash{}
+	hash := NodeTuplesHash{}
 	for len(queue) > 0 {
 		x := queue[0] // head
 		queue = queue[1:] // remove
@@ -182,7 +190,7 @@ func (n1 *Node) operation(n2 *Node, op func(a *Node, b *Node) bool, isFinal func
 			if op(x.a.edge[i], x.b.edge[i]) {
 				succ := hash.get(x.a.edge[i], x.b.edge[i])
 				if succ == nil {
-					succ = &NodeTuple{createEmptyNode(x.a.edge[i].name + x.b.edge[i].name), x.a.edge[i], x.b.edge[i], nil}
+					succ = &NodeTuple{createEmptyNode(x.a.edge[i].name + x.b.edge[i].name), x.a.edge[i], x.b.edge[i]}
 					hash.add(succ)
 					queue = append(queue, succ)
 					succ.node.final = isFinal(succ.a, succ.b)
@@ -301,7 +309,10 @@ func TestTreeFromPaper() {
 
 	if !q14.equals(unified) {
 		fmt.Println("the generated tree does not equal the minimized tree")
+		fmt.Println("is:")
 		unified.PrintTree()
+		fmt.Println("should:")
+		q14.PrintTree()
 	}
 }
 

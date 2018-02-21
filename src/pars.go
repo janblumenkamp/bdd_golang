@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"strings"
 	"unicode"
 	"hash/fnv"
@@ -97,13 +95,8 @@ func (self *Element) print(intendation int) {
 	}
 }
 
-func main() {
-	b, err := ioutil.ReadFile(os.Args[1]) // just pass the file name
-	if err != nil {
-		fmt.Print(err)
-	}
-
-	currentParsToken := RemoveWhitespaces(string(b))
+func pars(s string) *Model {
+	currentParsToken := RemoveWhitespaces(s)
 
 	currentParsToken = strings.Split(currentParsToken, "MODULE")[1]
 	model := Model{}
@@ -162,5 +155,5 @@ func main() {
 		el.elType = nodeType
 	}
 
-	model.outputs[1].print(0)
+	return &model
 }

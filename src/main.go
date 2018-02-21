@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"unsafe"
+	"io/ioutil"
+	"os"
 )
 
 type Node struct {
@@ -333,4 +335,12 @@ func TestTreeWithFourIsomorph() {
 func main() {
 	TestTreeFromPaper()
 	TestTreeWithFourIsomorph()
+
+	b, err := ioutil.ReadFile(os.Args[1]) // just pass the file name
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	model := pars(string(b))
+	model.outputs[0].print(0)
 }

@@ -85,8 +85,8 @@ func SplitElement(r rune) bool {
 }
 
 func (self *Element) print(intendation int) {
-	for i := 0; i < 2 * intendation; i++ {
-		fmt.Print(" ")
+	for i := 0; i < intendation; i++ {
+		fmt.Print("  ")
 	}
 	fmt.Print(self.name, " ", self.elType)
 	for _, el := range self.inputs {

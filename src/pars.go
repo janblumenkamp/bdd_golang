@@ -9,23 +9,10 @@ import (
 	"hash/fnv"
 )
 
-type ElementType int
-const (
-	NONE ElementType = iota
-	INPUT
-	OUTPUT
-	AND
-	OR
-	NOT
-	NAND
-	NOR
-	XOR
-)
-
 type Element struct {
 	name string
-	t ElementType
-	inputs [2]*Element
+	elType string
+	inputs []*Element
 }
 
 const ELEMENTHASH_SIZE = 10
@@ -97,30 +84,17 @@ func SplitElement(r rune) bool {
 	return r == '=' || r == ',' || r == '(' || r == ')'
 }
 
-func getElementTypeForTypeName(str string) ElementType {
-	switch str {
-	case "and": return AND
-	case "or": return OR
-	case "not": return NOT
-	case "nand": return NAND
-	case "nor": return NOR
-	case "xor": return XOR
+func (self *Element) print(intendation int) {
+	for i := 0; i < 2 * intendation; i++ {
+		fmt.Print(" ")
 	}
-	return NONE
-}
-
-func (self *Element) print() {
-	fmt.Print("(")
-	if self.inputs[0] != nil {
-		self.inputs[0].print()
+	fmt.Print(self.name, " ", self.elType)
+	for _, el := range self.inputs {
+		fmt.Println()
+		if el != nil {
+			el.print(intendation + 1)
+		}
 	}
-	fmt.Print(")")
-	fmt.Print(self.name, " ", self.t)
-	fmt.Print("(")
-	if self.inputs[1] != nil {
-		self.inputs[1].print()
-	}
-	fmt.Print(")")
 }
 
 func main() {
@@ -151,14 +125,14 @@ func main() {
 
 	model.inputs = make([]*Element, len(rawInputs))
 	for i, inputName := range rawInputs {
-		el := &Element{inputName, INPUT, [2]*Element{}}
+		el := &Element{inputName, "in", nil}
 		model.hash.add(el)
 		model.inputs[i] = el
 	}
 
 	model.outputs = make([]*Element, len(rawOutputs))
 	for i, outputName := range rawOutputs {
-		el := &Element{outputName, OUTPUT, [2]*Element{}}
+		el := &Element{outputName, "out", nil}
 		model.hash.add(el)
 		model.outputs[i] = el
 	}
@@ -167,32 +141,26 @@ func main() {
 		elData := strings.FieldsFunc(nodeData, SplitElement)
 		nodeName := elData[0]
 		nodeType := elData[1]
-		nodeInputs := make([]string, 2)
-		nodeInputs[0] = elData[2]
-		nodeInputs[1] = elData[3]
 
-		elInputs := [2]*Element{}
-		for j := 0; j < 2; j++ {
-			elInputs[j] = model.hash.get(nodeInputs[j])
-			if elInputs[j] == nil {
-				elInputs[j] = &Element{nodeInputs[j], NONE, [2]*Element{}}
-				model.hash.add(elInputs[j])
+		inputAmount := len(elData) - 2
+		elInputs := make([]*Element, inputAmount)
+		for i := 0; i < inputAmount; i++ {
+			currentInputName := elData[i + 2]
+			elInputs[i] = model.hash.get(currentInputName)
+			if elInputs[i] == nil {
+				elInputs[i] = &Element{currentInputName, "", nil}
+				model.hash.add(elInputs[i])
 			}
 		}
 
 		el := model.hash.get(nodeName)
 		if el == nil {
-			el = &Element{nodeName, NONE, [2]*Element{}}
+			el = &Element{nodeName, "", nil}
 			model.hash.add(el)
 		}
 		el.inputs = elInputs
-		el.t = getElementTypeForTypeName(nodeType)
+		el.elType = nodeType
 	}
 
-	model.outputs[0].print()
-	/*currentParsToken = strings.SplitAfter(currentParsToken, "INPUT\n\t")[1]
-	splitted := strings.Split(currentParsToken, ";")
-	//inputs := splitted[0]
-	currentParsToken = splitted[1]
-	fmt.Println(currentParsToken)*/
+	model.outputs[1].print(0)
 }

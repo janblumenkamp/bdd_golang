@@ -2,16 +2,15 @@ package main
 
 import (
 	"fmt"
-	"unsafe"
 	"io/ioutil"
 	"os"
+	"hash/fnv"
 )
 
 type Node struct {
 	name string
 	edge [2]*Node
 	final bool
-	next *Node
 	min_equiv *Node // Corresponding node in minimization
 }
 
@@ -20,7 +19,6 @@ func createEmptyNode(name string) *Node {
 	n.name = name
 	n.edge = [2]*Node{nil, nil}
 	n.final = false
-	n.next = nil
 	return n
 }
 
@@ -29,7 +27,6 @@ func createNode(name string, edge0 *Node, edge1 *Node) *Node  {
 	n.name = name
 	n.edge = [2]*Node{edge0, edge1}
 	n.final = false
-	n.next = nil
 	return n
 }
 
@@ -58,10 +55,14 @@ type NodeTuplesHash struct {
 }
 
 func hashIndex(a *Node, b *Node) int {
-	index_a := int(uintptr(unsafe.Pointer(a))) >> 6
-	index_b := int(uintptr(unsafe.Pointer(b))) >> 6
-	result := (index_a * (NODEHASH_SIZE / 2) + index_b) % NODEHASH_SIZE
-	return result
+	h := fnv.New32a()
+	if a != nil {
+		h.Write([]byte(a.name))
+	}
+	if b != nil {
+		h.Write([]byte(b.name))
+	}
+	return int(h.Sum32()) % NODEHASH_SIZE
 }
 
 func (h *NodeTuplesHash) get(a *Node, b *Node) *NodeTuple {
@@ -96,29 +97,35 @@ func (h *NodeTuplesHash) add(t *NodeTuple) {
 }
 
 type NodeHash struct {
-	elements [NODEHASH_SIZE]*Node
+	el *Node
+	next *NodeHash
 }
 
-func (h *NodeHash) getSameKey(a *Node, b *Node) *Node {
+type NodesHash struct {
+	elements [NODEHASH_SIZE]*NodeHash
+}
+
+func (h *NodesHash) getSameKey(a *Node, b *Node) *NodeHash {
 	if a == nil && b == nil{
 		return nil
 	}
 	return h.elements[hashIndex(a, b)]
 }
 
-func (h *NodeHash) add(t *Node) {
+func (h *NodesHash) add(t *Node) {
+	elNodeHashEntry := &NodeHash{t, nil}
 	index := hashIndex(t.edge[0], t.edge[1])
 	if h.elements[index] == nil {
-		h.elements[index] = t
+		h.elements[index] = elNodeHashEntry
 	} else {
-		el := h.elements[index]
-		for el.next != nil {
-			if el.edge == t.edge {
+		hashEL := h.elements[index]
+		for hashEL.next != nil {
+			if hashEL.el.edge == t.edge {
 				return
 			}
-			el = el.next
+			hashEL = hashEL.next
 		}
-		el.next = t
+		hashEL.next = elNodeHashEntry
 	}
 }
 
@@ -204,7 +211,7 @@ func (n1 *Node) operation(n2 *Node, op func(a *Node, b *Node) bool, isFinal func
 }
 
 func minimize(generizationQueue []*Node) *Node {
-	hashMin := NodeHash{}
+	hashMin := NodesHash{}
 	var n *Node
 	for i := len(generizationQueue) - 1; i >= 0; i-- {
 		flag := false
@@ -222,7 +229,8 @@ func minimize(generizationQueue []*Node) *Node {
 				edgeEquiv[i] = edgeEquiv[i].min_equiv
 			}
 		}
-		for n = hashMin.getSameKey(edgeEquiv[0], edgeEquiv[1]); n != nil; n = n.next {
+		for hashEl := hashMin.getSameKey(edgeEquiv[0], edgeEquiv[1]); hashEl != nil; hashEl = hashEl.next {
+			n = hashEl.el
 			if n.edge == edgeEquiv && !n.final {
 				flag = true
 				break

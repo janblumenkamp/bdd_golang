@@ -10,6 +10,7 @@ import (
 type Element struct {
 	name string
 	elType string
+	val bool
 	inputs []*Element
 }
 
@@ -22,6 +23,7 @@ type ElementHash struct {
 
 type ElementsHash struct {
 	elements [ELEMENTHASH_SIZE]*ElementHash
+	amount int
 }
 
 func hashElement(s string) int {
@@ -59,6 +61,21 @@ func (h *ElementsHash) add(t *Element) {
 		}
 		hashEl.next = elHashEntry
 	}
+	h.amount ++
+}
+
+func (self *Element) eval() bool {
+	switch self.elType {
+	case "in":
+	case "out":		break
+	case "not": 	self.val = !self.inputs[0].eval()
+	case "and": 	self.val = self.inputs[0].eval() && self.inputs[1].eval()
+	case "or": 		self.val = self.inputs[0].eval() || self.inputs[1].eval()
+	case "nand": 	self.val = !(self.inputs[0].eval() && self.inputs[1].eval())
+	case "nor": 	self.val = !(self.inputs[0].eval() || self.inputs[1].eval())
+	case "xor": 	self.val = self.inputs[0].eval() != self.inputs[1].eval()
+	}
+	return self.val
 }
 
 type Model struct {
@@ -95,6 +112,29 @@ func (self *Element) print(intendation int) {
 	}
 }
 
+func (self *Element) collectAllInputs(hash *ElementsHash) {
+	if self.elType == "in" {
+		hash.add(self)
+	}
+	for _, el := range self.inputs {
+		el.collectAllInputs(hash)
+	}
+}
+
+func (self *Element) getAllInputs() []*Element {
+	hash := ElementsHash{}
+	self.collectAllInputs(&hash)
+	elements := make([]*Element, hash.amount)
+	currentElementsIndex := 0
+	for i := 0; i < ELEMENTHASH_SIZE; i++ {
+		for el := hash.elements[i]; el != nil; el = el.next {
+			elements[currentElementsIndex] = el.el
+			currentElementsIndex ++
+		}
+	}
+	return elements
+}
+
 func pars(s string) *Model {
 	currentParsToken := RemoveWhitespaces(s)
 
@@ -118,14 +158,14 @@ func pars(s string) *Model {
 
 	model.inputs = make([]*Element, len(rawInputs))
 	for i, inputName := range rawInputs {
-		el := &Element{inputName, "in", nil}
+		el := &Element{inputName, "in", false, nil}
 		model.hash.add(el)
 		model.inputs[i] = el
 	}
 
 	model.outputs = make([]*Element, len(rawOutputs))
 	for i, outputName := range rawOutputs {
-		el := &Element{outputName, "out", nil}
+		el := &Element{outputName, "out", false, nil}
 		model.hash.add(el)
 		model.outputs[i] = el
 	}
@@ -141,14 +181,14 @@ func pars(s string) *Model {
 			currentInputName := elData[i + 2]
 			elInputs[i] = model.hash.get(currentInputName)
 			if elInputs[i] == nil {
-				elInputs[i] = &Element{currentInputName, "", nil}
+				elInputs[i] = &Element{currentInputName, "", false, nil}
 				model.hash.add(elInputs[i])
 			}
 		}
 
 		el := model.hash.get(nodeName)
 		if el == nil {
-			el = &Element{nodeName, "", nil}
+			el = &Element{nodeName, "", false, nil}
 			model.hash.add(el)
 		}
 		el.inputs = elInputs

@@ -25,7 +25,7 @@ const NODEHASH_SIZE = 10
 func hashIndex(a *Node, b *Node) int {
 	index := 0
 	if a != nil {
-		index += a.id * NODEHASH_SIZE
+		index += a.id * (NODEHASH_SIZE / 2)
 	}
 	if b != nil {
 		index += b.id
@@ -101,40 +101,13 @@ func (n *Node) String() string {
 	if n == nil {
 		return ""
 	}
-	edgeNames := [2]int{-1, -1}
+	edgeNames := [2]string{"", ""}
 	for index, edge := range n.edge {
 		if edge != nil {
-			edgeNames[index] = edge.id
+			edgeNames[index] = fmt.Sprintf("%p", edge)
 		}
 	}
-	return fmt.Sprint(n.id, "(", edgeNames[0], ",", edgeNames[1], ")")
-}
-
-func (n *Node) PrintTree() {
-	processQueue := append(make(NodeLabeledQueue, 0), &NodeLabeled{n, 0})
-
-	previousLevel := 0
-
-	for len(processQueue) > 0 {
-		node := processQueue[0] // Pop
-		processQueue = processQueue[1:]
-
-		if previousLevel < node.level {
-			previousLevel = node.level
-			fmt.Println()
-		}
-
-		fmt.Print(node)
-
-		for _, edge := range node.edge {
-			if edge != nil && !processQueue.contains(edge) {
-				new_node := &NodeLabeled{edge, node.level + 1}
-				processQueue = append(processQueue, new_node)
-			}
-		}
-	}
-	fmt.Println()
-	fmt.Println()
+	return fmt.Sprint(fmt.Sprintf("%p", n), "(", edgeNames[0], ",", edgeNames[1], ")")
 }
 
 func (self *RobddBuilder) getIdentifier(node *Node) string {
@@ -142,18 +115,12 @@ func (self *RobddBuilder) getIdentifier(node *Node) string {
 		return ""
 	}
 
-	childIDs := [2]string{"",""}
-	for i, edge := range node.edge {
-		if edge != nil  {
-			childIDs[i] = fmt.Sprint(edge.id)
-		}
-	}
 	if node.id == 0 {
 		return "false"
 	} else if node.id == 1 {
 		return "true"
 	} else {
-		return fmt.Sprint(self.inputs[node.id - 2].name, "_", node.id, childIDs[0], childIDs[1])
+		return fmt.Sprint(self.inputs[node.id - 2].name, fmt.Sprintf("_%p", node))
 	}
 }
 
@@ -165,8 +132,8 @@ func (self *RobddBuilder) StringRecursive(n *Node) string {
 	//s := fmt.Sprint(self.getIdentifier(n), ",", self.getIdentifier(n.edge[0]), ",", self.getIdentifier(n.edge[1]), ";")
 	ownId := self.getIdentifier(n)
 	s := ""
-	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[0]), "\");\n")
-	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[1]), "\");\n")
+	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[0]), "\", { label : \"0\" });\n")
+	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[1]), "\", { label : \"1\" });\n")
 	s += self.StringRecursive(n.edge[0])
 	s += self.StringRecursive(n.edge[1])
 	return s

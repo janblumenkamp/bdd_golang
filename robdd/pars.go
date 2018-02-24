@@ -64,6 +64,23 @@ func (h *ElementsHash) add(t *Element) {
 	h.amount ++
 }
 
+func deepCopy(element *Element) *Element {
+	if element == nil {
+		return nil
+	}
+
+	copyEl := new(Element)
+	copyEl.name = element.name
+	copyEl.val = element.val
+	copyEl.elType = element.elType
+	copyEl.inputs = make([]*Element, len(element.inputs))
+
+	for i, input := range element.inputs {
+		copyEl.inputs[i] = deepCopy(input)
+	}
+	return copyEl
+}
+
 func (self *Element) eval() bool {
 	switch self.elType {
 	case "in":
@@ -99,17 +116,22 @@ func SplitElement(r rune) bool {
 	return r == '=' || r == ',' || r == '(' || r == ')'
 }
 
-func (self *Element) print(intendation int) {
+func (self *Element) printRecursive(intendation int) {
 	for i := 0; i < intendation; i++ {
 		fmt.Print("  ")
 	}
-	fmt.Print(self.name, " ", self.elType)
+	fmt.Print(self.name, " ", self.elType, "(", self.val, ")")
 	for _, el := range self.inputs {
 		fmt.Println()
 		if el != nil {
-			el.print(intendation + 1)
+			el.printRecursive(intendation + 1)
 		}
 	}
+}
+
+func (self *Element) print() {
+	self.printRecursive(0)
+	fmt.Println()
 }
 
 func (self *Element) collectAllInputs(hash *ElementsHash) {

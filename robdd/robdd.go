@@ -20,15 +20,16 @@ func createNode(id int, edge0 *Node, edge1 *Node) *Node  {
 	return n
 }
 
-const NODEHASH_SIZE = 10
+const NODEHASH_SIZE = 15485863
 
-func hashIndex(a *Node, b *Node) int {
-	index := 0
-	if a != nil {
-		index += a.id * (NODEHASH_SIZE / 2)
+func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
+	pair := func(i int, j int) int {
+		return (((i + j) * (i + j + 1)) / 2) + i
 	}
-	if b != nil {
-		index += b.id
+
+	index := i
+	if low != nil && high != nil {
+		index = pair(i, pair(low.id, high.id))
 	}
 	return index % NODEHASH_SIZE
 }
@@ -42,20 +43,12 @@ type NodesHash struct {
 	elements [NODEHASH_SIZE]*NodeHash
 }
 
-func (h *NodesHash) getSameKey(a *Node, b *Node) *NodeHash {
-	if a == nil && b == nil{
-		return nil
-	}
-	return h.elements[hashIndex(a, b)]
-}
-
-
-func (h *NodesHash) get(a *Node, b *Node) *Node {
-	n := h.elements[hashIndex(a, b)]
+func (h *NodesHash) get(i int, low *Node, high *Node) *Node {
+	n := h.elements[h.hashIndex(i, low, high)]
 	if n == nil {
 		return nil
 	}
-	for n != nil && (n.el.edge[0] != a || n.el.edge[1] != b) {
+	for n != nil && (n.el.id != i || n.el.edge[0] != low || n.el.edge[1] != high) {
 		n = n.next
 	}
 	if n == nil {
@@ -66,15 +59,12 @@ func (h *NodesHash) get(a *Node, b *Node) *Node {
 
 func (h *NodesHash) add(t *Node) {
 	elNodeHashEntry := &NodeHash{t, nil}
-	index := hashIndex(t.edge[0], t.edge[1])
+	index := h.hashIndex(t.id, t.edge[0], t.edge[1])
 	if h.elements[index] == nil {
 		h.elements[index] = elNodeHashEntry
 	} else {
 		hashEL := h.elements[index]
 		for hashEL.next != nil {
-			if hashEL.el.edge == t.edge {
-				return
-			}
 			hashEL = hashEL.next
 		}
 		hashEL.next = elNodeHashEntry
@@ -178,7 +168,7 @@ func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
 	if low == high {
 		return low
 	}
-	n := self.creationHash.get(low, high)
+	n := self.creationHash.get(id, low, high)
 	if n == nil {
 		n = createNode(id, low, high)
 		self.creationHash.add(n)

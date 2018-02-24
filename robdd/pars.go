@@ -54,9 +54,6 @@ func (h *ElementsHash) add(t *Element) {
 	} else {
 		hashEl := h.elements[index]
 		for hashEl.next != nil {
-			if hashEl.el.name == t.name {
-				return
-			}
 			hashEl = hashEl.next
 		}
 		hashEl.next = elHashEntry
@@ -136,7 +133,9 @@ func (self *Element) print() {
 
 func (self *Element) collectAllInputs(hash *ElementsHash) {
 	if self.elType == "in" {
-		hash.add(self)
+		if hash.get(self.name) == nil {
+			hash.add(self)
+		}
 	}
 	for _, el := range self.inputs {
 		el.collectAllInputs(hash)

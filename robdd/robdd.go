@@ -153,6 +153,7 @@ type RobddBuilder struct {
 	inputsSize int
 	bddTrue Node
 	bddFalse Node
+	bdd *Node
 }
 
 func (self *RobddBuilder) build(node *Element) *Node {
@@ -162,7 +163,8 @@ func (self *RobddBuilder) build(node *Element) *Node {
 	self.bddTrue.id = 1
 	self.bddFalse.id = 0
 
-	return self.buildRecursive(2)
+	self.bdd = self.buildRecursive(2)
+	return self.bdd
 }
 
 func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
@@ -189,7 +191,7 @@ func (self *RobddBuilder) buildRecursive(i int) *Node {
 		low := self.buildRecursive(i + 1)
 		self.inputs[i - 2].val = true
 		high := self.buildRecursive(i + 1)
-		return self.mk(i + 2, low, high)
+		return self.mk(i, low, high)
 	}
 }
 

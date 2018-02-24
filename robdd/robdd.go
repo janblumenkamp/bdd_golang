@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"hash/fnv"
 	"io/ioutil"
 	"os"
 	"time"
@@ -10,13 +9,13 @@ import (
 
 
 type Node struct {
-	name string
+	id int
 	edge [2]*Node
 }
 
-func createNode(name string, edge0 *Node, edge1 *Node) *Node  {
+func createNode(id int, edge0 *Node, edge1 *Node) *Node  {
 	n := new(Node)
-	n.name = name
+	n.id = id
 	n.edge = [2]*Node{edge0, edge1}
 	return n
 }
@@ -24,14 +23,14 @@ func createNode(name string, edge0 *Node, edge1 *Node) *Node  {
 const NODEHASH_SIZE = 10
 
 func hashIndex(a *Node, b *Node) int {
-	h := fnv.New32a()
+	index := 0
 	if a != nil {
-		h.Write([]byte(a.name))
+		index += a.id * NODEHASH_SIZE
 	}
 	if b != nil {
-		h.Write([]byte(b.name))
+		index += b.id
 	}
-	return int(h.Sum32()) % NODEHASH_SIZE
+	return index % NODEHASH_SIZE
 }
 
 type NodeHash struct {
@@ -102,13 +101,13 @@ func (n *Node) String() string {
 	if n == nil {
 		return ""
 	}
-	edgeNames := [2]string{"", ""}
+	edgeNames := [2]int{-1, -1}
 	for index, edge := range n.edge {
 		if edge != nil {
-			edgeNames[index] = edge.name
+			edgeNames[index] = edge.id
 		}
 	}
-	return fmt.Sprint(n.name, "(", edgeNames[0], ",", edgeNames[1], ")")
+	return fmt.Sprint(n.id, "(", edgeNames[0], ",", edgeNames[1], ")")
 }
 
 func (n *Node) PrintTree() {
@@ -142,7 +141,7 @@ func (first *Node) equals(second *Node) bool {
 	if first == nil && second == nil {
 		return true
 	} else if first != nil && second != nil {
-		return first.edge[0].equals(second.edge[0]) && first.edge[1].equals(second.edge[1]) && first.name == second.name
+		return first.edge[0].equals(second.edge[0]) && first.edge[1].equals(second.edge[1]) && first.id == second.id
 	}
 	return false
 }
@@ -160,35 +159,35 @@ func (self *RobddBuilder) init(node *Element) {
 	self.output = node
 	self.inputs = self.output.getAllInputs()
 	self.inputsSize = len(self.inputs)
-	self.bddTrue.name = "True"
-	self.bddFalse.name = "False"
+	self.bddTrue.id = 1
+	self.bddFalse.id = 0
 }
 
-func (self *RobddBuilder) mk(name string, low *Node, high *Node) *Node {
+func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
 	if low == high {
 		return low
 	}
 	n := self.creationHash.get(low, high)
 	if n == nil {
-		n = createNode(name, low, high)
+		n = createNode(id, low, high)
 		self.creationHash.add(n)
 	}
 	return n
 }
 
 func (self *RobddBuilder) build(i int) *Node {
-	if i >= self.inputsSize {
+	if i - 2 >= self.inputsSize {
 		if self.output.eval() {
 			return &self.bddTrue
 		} else {
 			return &self.bddFalse
 		}
 	} else {
-		self.inputs[i].val = false
+		self.inputs[i - 2].val = false
 		low := self.build(i + 1)
-		self.inputs[i].val = true
+		self.inputs[i - 2].val = true
 		high := self.build(i + 1)
-		return self.mk(self.inputs[i].name, low, high)
+		return self.mk(i + 2, low, high)
 	}
 }
 
@@ -209,6 +208,6 @@ func main() {
 	fmt.Println()
 	bdd := new(RobddBuilder)
 	bdd.init(model.outputs[1])
-	n := bdd.build(0)
+	n := bdd.build(2)
 	n.PrintTree()
 }

@@ -78,16 +78,24 @@ func deepCopy(element *Element) *Element {
 	return copyEl
 }
 
+func (self *Element) evalInputs(op func(bool, bool) bool) bool {
+	val := self.inputs[0].eval()
+	for i := 1; i < len(self.inputs); i++ {
+		val = op(val, self.inputs[i].eval())
+	}
+	return val
+}
+
 func (self *Element) eval() bool {
 	switch self.elType {
 	case "in":
-	case "out":		break
-	case "not": 	self.val = !self.inputs[0].eval()
-	case "and": 	self.val = self.inputs[0].eval() && self.inputs[1].eval()
-	case "or": 		self.val = self.inputs[0].eval() || self.inputs[1].eval()
-	case "nand": 	self.val = !(self.inputs[0].eval() && self.inputs[1].eval())
-	case "nor": 	self.val = !(self.inputs[0].eval() || self.inputs[1].eval())
-	case "xor": 	self.val = self.inputs[0].eval() != self.inputs[1].eval()
+	case "out": 	self.val = self.inputs[0].eval(); break
+	case "not": 	self.val = !self.inputs[0].eval(); break
+	case "and": 	self.val = self.evalInputs(func(a bool, b bool) bool { return a && b }); break
+	case "or": 		self.val = self.evalInputs(func(a bool, b bool) bool { return a || b }); break
+	case "nand": 	self.val = self.evalInputs(func(a bool, b bool) bool { return !(a && b) }); break
+	case "nor": 	self.val = self.evalInputs(func(a bool, b bool) bool { return !(a || b) }); break
+	case "xor": 	self.val = self.evalInputs(func(a bool, b bool) bool { return a != b }); break
 	}
 	return self.val
 }

@@ -130,7 +130,17 @@ func (self *RobddBuilder) StringRecursive(n *Node) string {
 }
 
 func (self *RobddBuilder) String() string {
-	return self.StringRecursive(self.bdd)
+	s := `window.onload = function() {
+	var g = new Graph();
+	Math.seedrandom("bddseed");
+	g.edgeFactory.template.style.directed = true;`
+	s += self.StringRecursive(self.bdd)
+	s += `var layouter = new Graph.Layout.Ordered(g, topological_sort(g));
+	layouter.layout();
+	var renderer = new Graph.Renderer.Raphael('canvas', g, 1000, 800);
+	renderer.draw();
+	};`
+	return s
 }
 
 func (first *Node) equals(second *Node) bool {
@@ -193,9 +203,9 @@ func (self *RobddBuilder) buildRecursive(i int) *Node {
 }
 
 func main() {
-	b, err := ioutil.ReadFile(os.Args[1]) // just pass the file name
-	if err != nil {
-		fmt.Print(err)
+	b, errIn := ioutil.ReadFile(os.Args[1]) // just pass the file name
+	if errIn != nil {
+		fmt.Print(errIn)
 	}
 
 	model := new(Model)
@@ -203,13 +213,27 @@ func main() {
 	start := time.Now()
 	model = pars(string(b))
 	fmt.Println(time.Since(start))
-	model.outputs[0].print()
+	//model.outputs[0].print()
+
+	for i, el := range model.outputs {
+		fmt.Println(i, ": ", len(model.getAllInputs(el)))
+	}
+
+//	model.outputs[0].print()
+
 
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	n := bdd.build(model.outputs[0])
-	n.PrintTree()
+	start = time.Now()
+	bdd.build(model, model.outputs[0])
+	fmt.Println("built in ", time.Since(start))
 
-	fmt.Println(bdd)
+	fmt.Println("number of collisions:", numberOfCollisions)
+
+	d1 := []byte(bdd.String())
+	errOut := ioutil.WriteFile(os.Args[2], d1, 0644)
+	if errOut != nil {
+		fmt.Print(errOut)
+	}
 }

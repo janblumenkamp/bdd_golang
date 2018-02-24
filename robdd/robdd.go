@@ -162,10 +162,11 @@ type RobddBuilder struct {
 	bdd *Node
 }
 
-func (self *RobddBuilder) build(node *Element) *Node {
+func (self *RobddBuilder) build(model *Model, node *Element) *Node {
 	self.output = node
-	self.inputs = self.output.getAllInputs()
+	self.inputs = model.getAllInputs(self.output)
 	self.inputsSize = len(self.inputs)
+	fmt.Println(self.inputsSize, " inputs")
 	self.bddTrue.id = 1
 	self.bddFalse.id = 0
 

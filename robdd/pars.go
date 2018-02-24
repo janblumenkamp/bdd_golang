@@ -14,7 +14,7 @@ type Element struct {
 	inputs []*Element
 }
 
-const ELEMENTHASH_SIZE = 10
+const ELEMENTHASH_SIZE = 10000
 
 type ElementHash struct {
 	el *Element
@@ -140,27 +140,26 @@ func (self *Element) print() {
 }
 
 func (self *Element) collectAllInputs(hash *ElementsHash) {
-	if self.elType == "in" {
-		if hash.get(self.name) == nil {
-			hash.add(self)
-		}
+	if self.elType == "in" && hash.get(self.name) == nil {
+		hash.add(self)
 	}
 	for _, el := range self.inputs {
 		el.collectAllInputs(hash)
 	}
 }
 
-func (self *Element) getAllInputs() []*Element {
+func (self *Model) getAllInputs(el *Element) []*Element {
 	hash := ElementsHash{}
-	self.collectAllInputs(&hash)
+	el.collectAllInputs(&hash)
 	elements := make([]*Element, hash.amount)
 	currentElementsIndex := 0
-	for i := 0; i < ELEMENTHASH_SIZE; i++ {
-		for el := hash.elements[i]; el != nil; el = el.next {
-			elements[currentElementsIndex] = el.el
+	for _, inp := range self.inputs {
+		if hash.get(inp.name) != nil {
+			elements[currentElementsIndex] = inp
 			currentElementsIndex ++
 		}
 	}
+
 	return elements
 }
 

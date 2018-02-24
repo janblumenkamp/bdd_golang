@@ -202,16 +202,27 @@ func pars(s string) *Model {
 	for _, nodeData := range rawElements {
 		elData := strings.FieldsFunc(nodeData, SplitElement)
 		nodeName := elData[0]
-		nodeType := elData[1]
+		nodeType := "out"
+		elInputs := []*Element{}
+		if len(elData) > 2 {
+			nodeType = elData[1]
 
-		inputAmount := len(elData) - 2
-		elInputs := make([]*Element, inputAmount)
-		for i := 0; i < inputAmount; i++ {
-			currentInputName := elData[i + 2]
-			elInputs[i] = model.hash.get(currentInputName)
-			if elInputs[i] == nil {
-				elInputs[i] = &Element{currentInputName, "", false, nil}
-				model.hash.add(elInputs[i])
+			inputAmount := len(elData) - 2
+			elInputs = make([]*Element, inputAmount)
+			for i := 0; i < inputAmount; i++ {
+				currentInputName := elData[i + 2]
+				elInputs[i] = model.hash.get(currentInputName)
+				if elInputs[i] == nil {
+					elInputs[i] = &Element{currentInputName, "", false, nil}
+					model.hash.add(elInputs[i])
+				}
+			}
+		} else {
+			elInputs = make([]*Element, 1)
+			elInputs[0] = model.hash.get(elData[1])
+			if elInputs[0] == nil {
+				elInputs[0] = &Element{elData[1], "", false, nil}
+				model.hash.add(elInputs[0])
 			}
 		}
 

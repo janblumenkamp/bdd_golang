@@ -155,12 +155,14 @@ type RobddBuilder struct {
 	bddFalse Node
 }
 
-func (self *RobddBuilder) init(node *Element) {
+func (self *RobddBuilder) build(node *Element) *Node {
 	self.output = node
 	self.inputs = self.output.getAllInputs()
 	self.inputsSize = len(self.inputs)
 	self.bddTrue.id = 1
 	self.bddFalse.id = 0
+
+	return self.buildRecursive(2)
 }
 
 func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
@@ -175,7 +177,7 @@ func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
 	return n
 }
 
-func (self *RobddBuilder) build(i int) *Node {
+func (self *RobddBuilder) buildRecursive(i int) *Node {
 	if i - 2 >= self.inputsSize {
 		if self.output.eval() {
 			return &self.bddTrue
@@ -184,9 +186,9 @@ func (self *RobddBuilder) build(i int) *Node {
 		}
 	} else {
 		self.inputs[i - 2].val = false
-		low := self.build(i + 1)
+		low := self.buildRecursive(i + 1)
 		self.inputs[i - 2].val = true
-		high := self.build(i + 1)
+		high := self.buildRecursive(i + 1)
 		return self.mk(i + 2, low, high)
 	}
 }
@@ -207,7 +209,6 @@ func main() {
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	bdd.init(model.outputs[1])
-	n := bdd.build(2)
+	n := bdd.build(model.outputs[1])
 	n.PrintTree()
 }

@@ -137,6 +137,45 @@ func (n *Node) PrintTree() {
 	fmt.Println()
 }
 
+func (self *RobddBuilder) getIdentifier(node *Node) string {
+	if node == nil {
+		return ""
+	}
+
+	childIDs := [2]string{"",""}
+	for i, edge := range node.edge {
+		if edge != nil  {
+			childIDs[i] = fmt.Sprint(edge.id)
+		}
+	}
+	if node.id == 0 {
+		return "false"
+	} else if node.id == 1 {
+		return "true"
+	} else {
+		return fmt.Sprint(self.inputs[node.id - 2].name, "_", node.id, childIDs[0], childIDs[1])
+	}
+}
+
+func (self *RobddBuilder) StringRecursive(n *Node) string {
+	if n == nil || (n.edge[0] == nil && n.edge[1] == nil) {
+		return ""
+	}
+
+	//s := fmt.Sprint(self.getIdentifier(n), ",", self.getIdentifier(n.edge[0]), ",", self.getIdentifier(n.edge[1]), ";")
+	ownId := self.getIdentifier(n)
+	s := ""
+	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[0]), "\");\n")
+	s += fmt.Sprint("g.addEdge(\"", ownId, "\", \"", self.getIdentifier(n.edge[1]), "\");\n")
+	s += self.StringRecursive(n.edge[0])
+	s += self.StringRecursive(n.edge[1])
+	return s
+}
+
+func (self *RobddBuilder) String() string {
+	return self.StringRecursive(self.bdd)
+}
+
 func (first *Node) equals(second *Node) bool {
 	if first == nil && second == nil {
 		return true
@@ -206,11 +245,13 @@ func main() {
 	start := time.Now()
 	model = pars(string(b))
 	fmt.Println(time.Since(start))
-	model.outputs[0].print(0)
+	model.outputs[0].print()
 
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	n := bdd.build(model.outputs[1])
+	n := bdd.build(model.outputs[0])
 	n.PrintTree()
+
+	fmt.Println(bdd)
 }

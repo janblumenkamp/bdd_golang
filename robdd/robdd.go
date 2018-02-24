@@ -57,6 +57,7 @@ func (h *NodesHash) get(i int, low *Node, high *Node) *Node {
 	return n.el
 }
 
+var numberOfCollisions = 0
 func (h *NodesHash) add(t *Node) {
 	elNodeHashEntry := &NodeHash{t, nil}
 	index := h.hashIndex(t.id, t.edge[0], t.edge[1])
@@ -65,26 +66,11 @@ func (h *NodesHash) add(t *Node) {
 	} else {
 		hashEL := h.elements[index]
 		for hashEL.next != nil {
+			numberOfCollisions ++
 			hashEL = hashEL.next
 		}
 		hashEL.next = elNodeHashEntry
 	}
-}
-
-type NodeLabeled struct {
-	*Node
-	level int
-}
-
-type NodeLabeledQueue []*NodeLabeled
-
-func (labeledNodes NodeLabeledQueue) contains(a *Node) bool {
-	for _, b := range labeledNodes {
-		if b.Node == a {
-			return true
-		}
-	}
-	return false
 }
 
 func (n *Node) String() string {

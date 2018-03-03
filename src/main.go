@@ -39,7 +39,7 @@ func pair(i int, j int) int {
 func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
 	index := i
 	if low != nil && high != nil {
-		index = pair(i, pair(low.id, high.id))
+		index = pair(i, pair(low.variable, high.variable))
 	}
 	return index % NODEHASH_SIZE
 }
@@ -60,7 +60,7 @@ type NodesCache struct {
 func (h *NodesCache) hashIndex(low *Node, high *Node) int {
 	index := 0
 	if low != nil && high != nil {
-		index = pair(low.id, high.id)
+		index = pair(low.variable, high.variable)
 	}
 	return index % NODEHASH_SIZE
 }
@@ -73,12 +73,12 @@ func (self *NodesCache) get(low *Node, high *Node) *Node {
 	return self.elements[self.hashIndex(low, high)]
 }
 
-func (h *NodesHash) get(i int, low *Node, high *Node) *Node {
-	n := h.elements[h.hashIndex(i, low, high)]
+func (h *NodesHash) get(variable int, low *Node, high *Node) *Node {
+	n := h.elements[h.hashIndex(variable, low, high)]
 	if n == nil {
 		return nil
 	}
-	for n != nil && (n.el.id != i || n.el.edge[0] != low || n.el.edge[1] != high) {
+	for n != nil && (n.el.variable != variable || n.el.edge[0] != low || n.el.edge[1] != high) {
 		n = n.next
 	}
 	if n == nil {
@@ -90,7 +90,7 @@ func (h *NodesHash) get(i int, low *Node, high *Node) *Node {
 var numberOfCollisions = 0
 func (h *NodesHash) add(t *Node) {
 	elNodeHashEntry := &NodeHash{t, nil}
-	index := h.hashIndex(t.id, t.edge[0], t.edge[1])
+	index := h.hashIndex(t.variable, t.edge[0], t.edge[1])
 	if h.elements[index] == nil {
 		h.elements[index] = elNodeHashEntry
 	} else {
@@ -182,6 +182,45 @@ func (self *Node) isFinal() bool {
 	return self.id == 0 || self.id == 1
 }
 
+func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Node {
+	u := new(Node)
+	if x.isFinal() && y.isFinal() {
+		fmt.Println("a")
+		if op(x.id == 1, y.id == 1) {
+			u = self.bddTrue
+		} else {
+			u = self.bddFalse
+		}
+	} else if x.variable == y.variable {
+		fmt.Println("b")
+		u = self.mk(
+			x.variable,
+			self.apply(op, x.edge[0], y.edge[0]),
+			self.apply(op, x.edge[1], y.edge[1]))
+	} else if x.variable < y.variable {
+		fmt.Println("c")
+		u = self.mk(
+			x.variable,
+			self.apply(op, x.edge[0], y),
+			self.apply(op, x.edge[1], y))
+	} else if x.variable > y.variable {
+		fmt.Println("d")
+		u = self.mk(
+			y.variable,
+			self.apply(op, x, y.edge[0]),
+			self.apply(op, x, y.edge[1]))
+	}
+	return u
+}
+
+func (self *RobddBuilder) applyAnd(x *Node, y *Node) *Node {
+	and := func(a bool, b bool) bool {
+		//fmt.Print(a && b, " ")
+		return a && b
+	}
+	return self.apply(and, x, y)
+}
+
 func (self *RobddBuilder) build(model *Model, node *Element) *Node {
 	self.output = node
 	self.inputs = model.getAllInputs(self.output)
@@ -196,13 +235,13 @@ func (self *RobddBuilder) init() {
 	self.bddTrue = createNode(1, nil, nil)
 }
 
-func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
+func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 	if low == high {
 		return low
 	}
-	n := self.creationHash.get(id, low, high)
+	n := self.creationHash.get(variable, low, high)
 	if n == nil {
-		n = createNode(id, low, high)
+		n = createNode(variable, low, high)
 		self.creationHash.add(n)
 	}
 	return n
@@ -225,10 +264,10 @@ func (self *RobddBuilder) buildRecursive(i int) *Node {
 }
 
 func (self *RobddBuilder) addVar(variable int) *Node {
-	if variable > self.bddTrue.variable {
+	if variable >= self.bddTrue.variable {
 		self.bddTrue.variable = variable + 1
 	}
-	if variable > self.bddFalse.variable {
+	if variable >= self.bddFalse.variable {
 		self.bddFalse.variable = variable + 1
 	}
 	return self.mk(variable, self.bddFalse, self.bddTrue)
@@ -249,7 +288,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c1.trace")//os.Args[1])
+	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c5315.trace")//os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
 	}
@@ -272,10 +311,15 @@ func main() {
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	start = time.Now()
-	bdd.build(model, model.outputs[0])
+	bdd.init()
+	va := bdd.addVar(1)
+	vb := bdd.addVar(2)
+	vc := bdd.applyAnd(va, vb)
+	fmt.Println("Res: ", vc.id)
+	/*start = time.Now()
+	bdd.build(model, model.outputs[43])
 	fmt.Println("built in ", time.Since(start))
-
+*/
 	fmt.Println("number of collisions:", numberOfCollisions)
 
 	d1 := []byte(bdd.String())

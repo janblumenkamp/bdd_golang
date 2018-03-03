@@ -3,30 +3,40 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
+	//"os"
 	"time"
+	"flag"
+	"os"
+	"log"
+	"runtime/pprof"
 )
+
+import _ "net/http/pprof"
 
 
 type Node struct {
+	variable int
 	id int
 	edge [2]*Node
 }
 
-func createNode(id int, edge0 *Node, edge1 *Node) *Node  {
+var nodeID = 0
+func createNode(variable int, edge0 *Node, edge1 *Node) *Node  {
 	n := new(Node)
-	n.id = id
+	n.id = nodeID
+	nodeID ++
+	n.variable = variable
 	n.edge = [2]*Node{edge0, edge1}
 	return n
 }
 
-const NODEHASH_SIZE = 15485863
+const NODEHASH_SIZE = 997
+
+func pair(i int, j int) int {
+	return (((i + j) * (i + j + 1)) / 2) + i
+}
 
 func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
-	pair := func(i int, j int) int {
-		return (((i + j) * (i + j + 1)) / 2) + i
-	}
-
 	index := i
 	if low != nil && high != nil {
 		index = pair(i, pair(low.id, high.id))
@@ -41,6 +51,26 @@ type NodeHash struct {
 
 type NodesHash struct {
 	elements [NODEHASH_SIZE]*NodeHash
+}
+
+type NodesCache struct {
+	elements [10000]*Node
+}
+
+func (h *NodesCache) hashIndex(low *Node, high *Node) int {
+	index := 0
+	if low != nil && high != nil {
+		index = pair(low.id, high.id)
+	}
+	return index % NODEHASH_SIZE
+}
+
+func (self *NodesCache) add(node *Node) {
+	self.elements[self.hashIndex(node.edge[0], node.edge[1])] = node
+}
+
+func (self *NodesCache) get(low *Node, high *Node) *Node {
+	return self.elements[self.hashIndex(low, high)]
 }
 
 func (h *NodesHash) get(i int, low *Node, high *Node) *Node {
@@ -143,9 +173,13 @@ type RobddBuilder struct {
 	output *Element
 	inputs []*Element
 	inputsSize int
-	bddTrue Node
-	bddFalse Node
+	bddTrue *Node
+	bddFalse *Node
 	bdd *Node
+}
+
+func (self *Node) isFinal() bool {
+	return self.id == 0 || self.id == 1
 }
 
 func (self *RobddBuilder) build(model *Model, node *Element) *Node {
@@ -153,11 +187,13 @@ func (self *RobddBuilder) build(model *Model, node *Element) *Node {
 	self.inputs = model.getAllInputs(self.output)
 	self.inputsSize = len(self.inputs)
 	fmt.Println(self.inputsSize, " inputs")
-	self.bddTrue.id = 1
-	self.bddFalse.id = 0
-
 	self.bdd = self.buildRecursive(2)
 	return self.bdd
+}
+
+func (self *RobddBuilder) init() {
+	self.bddFalse = createNode(0, nil, nil)
+	self.bddTrue = createNode(1, nil, nil)
 }
 
 func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
@@ -175,9 +211,9 @@ func (self *RobddBuilder) mk(id int, low *Node, high *Node) *Node {
 func (self *RobddBuilder) buildRecursive(i int) *Node {
 	if i - 2 >= self.inputsSize {
 		if self.output.eval() {
-			return &self.bddTrue
+			return self.bddTrue
 		} else {
-			return &self.bddFalse
+			return self.bddFalse
 		}
 	} else {
 		self.inputs[i - 2].val = false
@@ -188,8 +224,32 @@ func (self *RobddBuilder) buildRecursive(i int) *Node {
 	}
 }
 
+func (self *RobddBuilder) addVar(variable int) *Node {
+	if variable > self.bddTrue.variable {
+		self.bddTrue.variable = variable + 1
+	}
+	if variable > self.bddFalse.variable {
+		self.bddFalse.variable = variable + 1
+	}
+	return self.mk(variable, self.bddFalse, self.bddTrue)
+}
+
+var cpuprofile = flag.String("cpuprofile", "./prof", "write cpu profile to `file`")
+
 func main() {
-	b, errIn := ioutil.ReadFile(os.Args[1]) // just pass the file name
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c1.trace")//os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
 	}
@@ -205,7 +265,8 @@ func main() {
 		fmt.Println(i, ": ", len(model.getAllInputs(el)))
 	}
 
-//	model.outputs[0].print()
+	//	model.outputs[0].print()
+
 
 
 	fmt.Println()
@@ -218,7 +279,7 @@ func main() {
 	fmt.Println("number of collisions:", numberOfCollisions)
 
 	d1 := []byte(bdd.String())
-	errOut := ioutil.WriteFile(os.Args[2], d1, 0644)
+	errOut := ioutil.WriteFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/logicmerger/graphviz/graph.js", d1, 0644)
 	if errOut != nil {
 		fmt.Print(errOut)
 	}

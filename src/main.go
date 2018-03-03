@@ -30,7 +30,8 @@ func createNode(variable int, edge0 *Node, edge1 *Node) *Node  {
 	return n
 }
 
-const NODEHASH_SIZE = 997
+const NODEHASH_SIZE = 14593
+const NODECACHE_SIZE = 997
 
 func pair(i int, j int) int {
 	return (((i + j) * (i + j + 1)) / 2) + i
@@ -39,7 +40,7 @@ func pair(i int, j int) int {
 func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
 	index := i
 	if low != nil && high != nil {
-		index = pair(i, pair(low.variable, high.variable))
+		index = pair(i, pair(low.id, high.id))
 	}
 	return index % NODEHASH_SIZE
 }
@@ -54,7 +55,7 @@ type NodesHash struct {
 }
 
 type NodesCache struct {
-	elements [10000]*Node
+	elements [NODECACHE_SIZE]*Node
 }
 
 func (h *NodesCache) hashIndex(low *Node, high *Node) int {
@@ -62,15 +63,19 @@ func (h *NodesCache) hashIndex(low *Node, high *Node) int {
 	if low != nil && high != nil {
 		index = pair(low.variable, high.variable)
 	}
-	return index % NODEHASH_SIZE
+	return index % NODECACHE_SIZE
 }
 
-func (self *NodesCache) add(node *Node) {
+func (self *NodesCache) set(node *Node) {
 	self.elements[self.hashIndex(node.edge[0], node.edge[1])] = node
 }
 
 func (self *NodesCache) get(low *Node, high *Node) *Node {
-	return self.elements[self.hashIndex(low, high)]
+	el := self.elements[self.hashIndex(low, high)]
+	if el != nil && el.edge[0] == low && el.edge[1] == high {
+		return el
+	}
+	return nil
 }
 
 func (h *NodesHash) get(variable int, low *Node, high *Node) *Node {
@@ -126,7 +131,7 @@ func (self *RobddBuilder) getIdentifier(node *Node) string {
 	} else if node.id == 1 {
 		return "true"
 	} else {
-		return fmt.Sprint(self.inputs[node.variable - 1].name, fmt.Sprintf("_%p", node))
+		return fmt.Sprint(self.inputs[node.variable - 1].name, "_", node.id)
 	}
 }
 
@@ -170,6 +175,7 @@ func (first *Node) equals(second *Node) bool {
 
 type RobddBuilder struct {
 	creationHash NodesHash
+	nodeCache NodesCache
 	output *Element
 	inputs []*Element
 	inputsSize int
@@ -194,26 +200,22 @@ func (self *RobddBuilder) getVarForEl(element *Element) int {
 func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Node {
 	u := new(Node)
 	if x.isFinal() && y.isFinal() {
-		fmt.Println("a")
 		if op(x.id == 1, y.id == 1) {
 			u = self.bddTrue
 		} else {
 			u = self.bddFalse
 		}
 	} else if x.variable == y.variable {
-		fmt.Println("b")
 		u = self.mk(
 			x.variable,
 			self.apply(op, x.edge[0], y.edge[0]),
 			self.apply(op, x.edge[1], y.edge[1]))
 	} else if x.variable < y.variable {
-		fmt.Println("c")
 		u = self.mk(
 			x.variable,
 			self.apply(op, x.edge[0], y),
 			self.apply(op, x.edge[1], y))
 	} else if x.variable > y.variable {
-		fmt.Println("d")
 		u = self.mk(
 			y.variable,
 			self.apply(op, x, y.edge[0]),
@@ -261,7 +263,7 @@ func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 
 func (self *RobddBuilder) buildRecursiveApplyToInputs(op func(bool, bool) bool, element *Element) *Node {
 	node := self.buildRecursive(element.inputs[0])
-	for i := 1; i < len(self.inputs); i++ {
+	for i := 1; i < len(element.inputs); i++ {
 		node = self.apply(op, node, self.buildRecursive(element.inputs[i]))
 	}
 	return node
@@ -309,7 +311,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c1.trace")//os.Args[1])
+	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c5315.trace")//os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
 	}
@@ -325,19 +327,15 @@ func main() {
 		fmt.Println(i, ": ", len(model.getAllInputs(el)))
 	}
 
-	model.outputs[0].print()
-
+//	model.outputs[43].print()
 
 
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	vc := bdd.build(model, model.outputs[0])
-	fmt.Println("Res: ", vc.id)
-	/*start = time.Now()
-	bdd.build(model, model.outputs[43])
+	start = time.Now()
+	bdd.build(model, model.outputs[109])
 	fmt.Println("built in ", time.Since(start))
-*/
 	fmt.Println("number of collisions:", numberOfCollisions)
 
 	d1 := []byte(bdd.String())

@@ -217,8 +217,6 @@ func pars(s string) *Model {
 		elInputs := []*Element{}
 		if len(elData) > 2 {
 			switch elData[1] {
-			case "in":
-			case "out": 	nodeType = OUT; break
 			case "not": 	nodeType = NOT; break
 			case "and": 	nodeType = AND; break
 			case "or": 		nodeType = OR; break

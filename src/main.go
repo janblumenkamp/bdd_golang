@@ -126,7 +126,7 @@ func (self *RobddBuilder) getIdentifier(node *Node) string {
 	} else if node.id == 1 {
 		return "true"
 	} else {
-		return fmt.Sprint(self.inputs[node.id - 2].name, fmt.Sprintf("_%p", node))
+		return fmt.Sprint(self.inputs[node.variable - 1].name, fmt.Sprintf("_%p", node))
 	}
 }
 
@@ -182,6 +182,15 @@ func (self *Node) isFinal() bool {
 	return self.id == 0 || self.id == 1
 }
 
+func (self *RobddBuilder) getVarForEl(element *Element) int {
+	for i, el := range self.inputs {
+		if el == element {
+			return i + 1
+		}
+	}
+	return 0
+}
+
 func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Node {
 	u := new(Node)
 	if x.isFinal() && y.isFinal() {
@@ -213,26 +222,29 @@ func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Nod
 	return u
 }
 
-func (self *RobddBuilder) applyAnd(x *Node, y *Node) *Node {
-	and := func(a bool, b bool) bool {
-		//fmt.Print(a && b, " ")
-		return a && b
+func (self *RobddBuilder) applyNot(x *Node) *Node {
+	if x.isFinal() {
+		if x == self.bddTrue {
+			return self.bddFalse
+		} else {
+			return self.bddTrue
+		}
 	}
-	return self.apply(and, x, y)
+	return self.mk(x.variable, self.applyNot(x.edge[0]), self.applyNot(x.edge[1]))
 }
 
 func (self *RobddBuilder) build(model *Model, node *Element) *Node {
+	self.bddFalse = createNode(0, nil, nil)
+	self.bddTrue = createNode(1, nil, nil)
 	self.output = node
 	self.inputs = model.getAllInputs(self.output)
 	self.inputsSize = len(self.inputs)
-	fmt.Println(self.inputsSize, " inputs")
-	self.bdd = self.buildRecursive(2)
-	return self.bdd
-}
+	self.bddTrue.variable = self.inputsSize + 1
+	self.bddFalse.variable = self.inputsSize + 1
 
-func (self *RobddBuilder) init() {
-	self.bddFalse = createNode(0, nil, nil)
-	self.bddTrue = createNode(1, nil, nil)
+	fmt.Println(self.inputsSize, " inputs")
+	self.bdd = self.buildRecursive(node)
+	return self.bdd
 }
 
 func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
@@ -247,20 +259,29 @@ func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 	return n
 }
 
-func (self *RobddBuilder) buildRecursive(i int) *Node {
-	if i - 2 >= self.inputsSize {
-		if self.output.eval() {
-			return self.bddTrue
-		} else {
-			return self.bddFalse
-		}
-	} else {
-		self.inputs[i - 2].val = false
-		low := self.buildRecursive(i + 1)
-		self.inputs[i - 2].val = true
-		high := self.buildRecursive(i + 1)
-		return self.mk(i, low, high)
+func (self *RobddBuilder) buildRecursiveApplyToInputs(op func(bool, bool) bool, element *Element) *Node {
+	node := self.buildRecursive(element.inputs[0])
+	for i := 1; i < len(self.inputs); i++ {
+		node = self.apply(op, node, self.buildRecursive(element.inputs[i]))
 	}
+	return node
+}
+
+func (self *RobddBuilder) buildRecursive(element *Element) *Node {
+	for _, el := range element.inputs {
+		self.buildRecursive(el)
+	}
+	switch element.elType {
+	case IN:    return self.addVar(self.getVarForEl(element))
+	case OUT: 	return self.buildRecursive(element.inputs[0])
+	case NOT: 	return self.applyNot(self.buildRecursive(element.inputs[0]))
+	case AND:	return self.buildRecursiveApplyToInputs(func(a bool, b bool) bool { return a && b }, element)
+	case OR: 	return self.buildRecursiveApplyToInputs(func(a bool, b bool) bool { return a || b }, element)
+	case NAND:	return self.buildRecursiveApplyToInputs(func(a bool, b bool) bool { return !(a && b) }, element)
+	case NOR: 	return self.buildRecursiveApplyToInputs(func(a bool, b bool) bool { return !(a || b) }, element)
+	case XOR: 	return self.buildRecursiveApplyToInputs(func(a bool, b bool) bool { return a != b }, element)
+	}
+	return nil
 }
 
 func (self *RobddBuilder) addVar(variable int) *Node {
@@ -288,7 +309,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c5315.trace")//os.Args[1])
+	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c1.trace")//os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
 	}
@@ -304,17 +325,14 @@ func main() {
 		fmt.Println(i, ": ", len(model.getAllInputs(el)))
 	}
 
-	//	model.outputs[0].print()
+	model.outputs[0].print()
 
 
 
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
-	bdd.init()
-	va := bdd.addVar(1)
-	vb := bdd.addVar(2)
-	vc := bdd.applyAnd(va, vb)
+	vc := bdd.build(model, model.outputs[0])
 	fmt.Println("Res: ", vc.id)
 	/*start = time.Now()
 	bdd.build(model, model.outputs[43])

@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"sync"
 	"time"
+	"os"
+	"strconv"
 )
 
 import (
@@ -301,7 +303,7 @@ func (self *RobddBuilder) addVar(variable int) *Node {
 	return self.mk(variable, self.bddFalse, self.bddTrue)
 }
 func proc() {
-	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c5315.trace")//os.Args[1])
+	b, errIn := ioutil.ReadFile(os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
 	}
@@ -324,19 +326,24 @@ func proc() {
 	fmt.Println()
 	bdd := new(RobddBuilder)
 	start = time.Now()
-	bdd.build(model, model.outputs[70])
+	index, err := strconv.ParseInt(os.Args[2], 10, 16)
+	if err != nil {
+	  fmt.Println("error argument")
+	  return
+	}
+	bdd.build(model, model.outputs[index])
 	fmt.Println("built in ", time.Since(start))
 	fmt.Println("number of collisions:", numberOfCollisions)
 
-	d1 := []byte(bdd.String())
+	/*d1 := []byte(bdd.String())
 	errOut := ioutil.WriteFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/logicmerger/graphviz/graph.js", d1, 0644)
 	if errOut != nil {
 		fmt.Print(errOut)
-	}
+	}*/
 }
 
 func main() {
-	runtime.GOMAXPROCS(8)
+	runtime.GOMAXPROCS(1048)
 	fmt.Println(runtime.NumCPU())
 	proc()
 

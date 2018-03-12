@@ -3,15 +3,14 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	//"os"
+	"sync"
 	"time"
-	"flag"
-	"os"
-	"log"
-	"runtime/pprof"
 )
 
-import _ "net/http/pprof"
+import (
+	_ "net/http/pprof"
+	"runtime"
+)
 
 
 type Node struct {
@@ -175,6 +174,7 @@ func (first *Node) equals(second *Node) bool {
 
 type RobddBuilder struct {
 	creationHash NodesHash
+	creationHashMutex sync.Mutex
 	nodeCache NodesCache
 	output *Element
 	inputs []*Element
@@ -197,7 +197,7 @@ func (self *RobddBuilder) getVarForEl(element *Element) int {
 	return 0
 }
 
-func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Node {
+func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node, result chan *Node) {
 	u := new(Node)
 	if x.isFinal() && y.isFinal() {
 		if op(x.id == 1, y.id == 1) {
@@ -205,23 +205,24 @@ func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node) *Nod
 		} else {
 			u = self.bddFalse
 		}
-	} else if x.variable == y.variable {
-		u = self.mk(
-			x.variable,
-			self.apply(op, x.edge[0], y.edge[0]),
-			self.apply(op, x.edge[1], y.edge[1]))
-	} else if x.variable < y.variable {
-		u = self.mk(
-			x.variable,
-			self.apply(op, x.edge[0], y),
-			self.apply(op, x.edge[1], y))
-	} else if x.variable > y.variable {
-		u = self.mk(
-			y.variable,
-			self.apply(op, x, y.edge[0]),
-			self.apply(op, x, y.edge[1]))
+	} else {
+		low := make(chan *Node, 1)
+		high := make(chan *Node, 1)
+		if x.variable == y.variable {
+			go self.apply(op, x.edge[0], y.edge[0], low)
+			self.apply(op, x.edge[1], y.edge[1], high)
+			u = self.mk(x.variable, <-low, <-high)
+		} else if x.variable < y.variable {
+			go self.apply(op, x.edge[0], y, low)
+			self.apply(op, x.edge[1], y, high)
+			u = self.mk(x.variable, <-low, <-high)
+		} else if x.variable > y.variable {
+			go self.apply(op, x, y.edge[0], low)
+			self.apply(op, x, y.edge[1], high)
+			u = self.mk(y.variable, <-low, <-high)
+		}
 	}
-	return u
+	result <- u
 }
 
 func (self *RobddBuilder) applyNot(x *Node) *Node {
@@ -253,18 +254,22 @@ func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 	if low == high {
 		return low
 	}
+	self.creationHashMutex.Lock()
 	n := self.creationHash.get(variable, low, high)
 	if n == nil {
 		n = createNode(variable, low, high)
 		self.creationHash.add(n)
 	}
+	self.creationHashMutex.Unlock()
 	return n
 }
 
 func (self *RobddBuilder) buildRecursiveApplyToInputs(op func(bool, bool) bool, element *Element) *Node {
 	node := self.buildRecursive(element.inputs[0])
+	nodeResult := make(chan *Node, 1)
 	for i := 1; i < len(element.inputs); i++ {
-		node = self.apply(op, node, self.buildRecursive(element.inputs[i]))
+		self.apply(op, node, self.buildRecursive(element.inputs[i]), nodeResult)
+		node = <-nodeResult
 	}
 	return node
 }
@@ -295,22 +300,7 @@ func (self *RobddBuilder) addVar(variable int) *Node {
 	}
 	return self.mk(variable, self.bddFalse, self.bddTrue)
 }
-
-var cpuprofile = flag.String("cpuprofile", "./prof", "write cpu profile to `file`")
-
-func main() {
-	flag.Parse()
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
-		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
-		}
-		defer pprof.StopCPUProfile()
-	}
-
+func proc() {
 	b, errIn := ioutil.ReadFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/iscas85/iscas85/trace/c5315.trace")//os.Args[1])
 	if errIn != nil {
 		fmt.Print(errIn)
@@ -327,14 +317,14 @@ func main() {
 		fmt.Println(i, ": ", len(model.getAllInputs(el)))
 	}
 
-//	model.outputs[43].print()
+	//	model.outputs[43].print()
 
 
 	fmt.Println()
 	fmt.Println()
 	bdd := new(RobddBuilder)
 	start = time.Now()
-	bdd.build(model, model.outputs[109])
+	bdd.build(model, model.outputs[70])
 	fmt.Println("built in ", time.Since(start))
 	fmt.Println("number of collisions:", numberOfCollisions)
 
@@ -343,4 +333,11 @@ func main() {
 	if errOut != nil {
 		fmt.Print(errOut)
 	}
+}
+
+func main() {
+	runtime.GOMAXPROCS(8)
+	fmt.Println(runtime.NumCPU())
+	proc()
+
 }

@@ -12,6 +12,9 @@ import (
 import (
 	_ "net/http/pprof"
 	"runtime"
+	"flag"
+	"log"
+	"runtime/pprof"
 )
 
 
@@ -342,7 +345,20 @@ func proc() {
 	}*/
 }
 
+var cpuprofile = flag.String("cpuprofile", "./prof", "write cpu profile to `file`")
+
 func main() {
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 	runtime.GOMAXPROCS(1048)
 	fmt.Println(runtime.NumCPU())
 	proc()

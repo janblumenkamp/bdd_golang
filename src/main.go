@@ -7,9 +7,7 @@ import (
 	"time"
 	"os"
 	"strconv"
-)
 
-import (
 	_ "net/http/pprof"
 	"runtime"
 	"flag"
@@ -17,7 +15,8 @@ import (
 	"runtime/pprof"
 )
 
-
+// One BDD Node consists of the variable order, the unique id and two edge pointers to the two
+// child nodes
 type Node struct {
 	variable int
 	id int
@@ -25,6 +24,8 @@ type Node struct {
 }
 
 var nodeID = 0
+// Create a new node with the given variable order and the two child nodes.
+// The unique id is incremented automatically.
 func createNode(variable int, edge0 *Node, edge1 *Node) *Node  {
 	n := new(Node)
 	n.id = nodeID
@@ -37,10 +38,14 @@ func createNode(variable int, edge0 *Node, edge1 *Node) *Node  {
 const NODEHASH_SIZE = 14593
 const NODECACHE_SIZE = 997
 
+// Hash function as suggested in
+// https://www.cs.utexas.edu/~isil/cs389L/bdd.pdf
 func pair(i int, j int) int {
 	return (((i + j) * (i + j + 1)) / 2) + i
 }
 
+// Hash function as suggested in
+// https://www.cs.utexas.edu/~isil/cs389L/bdd.pdf
 func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
 	index := i
 	if low != nil && high != nil {
@@ -49,19 +54,27 @@ func (h *NodesHash) hashIndex(i int, low *Node, high *Node) int {
 	return index % NODEHASH_SIZE
 }
 
+// Node hash to check if a given Node already exists. Hash implemented as chained hash
+// (chain in linked list in case of collision)
 type NodeHash struct {
 	el *Node
 	next *NodeHash
 }
 
+// Nodeshash storage structure
 type NodesHash struct {
 	elements [NODEHASH_SIZE]*NodeHash
+	numberOfCollisions int
 }
 
+// Cache for Nodes, important for apply function but not used at the moment
+// due to performance reasons. It is necessary to create a cache for each
+// logical operation
 type NodesCache struct {
 	elements [NODECACHE_SIZE]*Node
 }
 
+// Calculates the nodecache index for a given low and high node
 func (h *NodesCache) hashIndex(low *Node, high *Node) int {
 	index := 0
 	if low != nil && high != nil {
@@ -70,10 +83,13 @@ func (h *NodesCache) hashIndex(low *Node, high *Node) int {
 	return index % NODECACHE_SIZE
 }
 
+// Add the given node to the cache
 func (self *NodesCache) set(node *Node) {
 	self.elements[self.hashIndex(node.edge[0], node.edge[1])] = node
 }
 
+// Get the node with the two childs from the cache
+// Returns nil if not available
 func (self *NodesCache) get(low *Node, high *Node) *Node {
 	el := self.elements[self.hashIndex(low, high)]
 	if el != nil && el.edge[0] == low && el.edge[1] == high {
@@ -82,6 +98,8 @@ func (self *NodesCache) get(low *Node, high *Node) *Node {
 	return nil
 }
 
+// Get a node with the given variable ordering and the given low and high nodes
+// from the nodes hash
 func (h *NodesHash) get(variable int, low *Node, high *Node) *Node {
 	n := h.elements[h.hashIndex(variable, low, high)]
 	if n == nil {
@@ -96,7 +114,7 @@ func (h *NodesHash) get(variable int, low *Node, high *Node) *Node {
 	return n.el
 }
 
-var numberOfCollisions = 0
+// Adds the given node to the node hash without checking if it already exists
 func (h *NodesHash) add(t *Node) {
 	elNodeHashEntry := &NodeHash{t, nil}
 	index := h.hashIndex(t.variable, t.edge[0], t.edge[1])
@@ -105,13 +123,14 @@ func (h *NodesHash) add(t *Node) {
 	} else {
 		hashEL := h.elements[index]
 		for hashEL.next != nil {
-			numberOfCollisions ++
+			h.numberOfCollisions ++
 			hashEL = hashEL.next
 		}
 		hashEL.next = elNodeHashEntry
 	}
 }
 
+// converts the given node to a string for easier represenation
 func (n *Node) String() string {
 	if n == nil {
 		return ""
@@ -125,6 +144,7 @@ func (n *Node) String() string {
 	return fmt.Sprint(fmt.Sprintf("%p", n), "(", edgeNames[0], ",", edgeNames[1], ")")
 }
 
+// Returns the unique node id as a string (in the terminal nodes true or false)
 func (self *RobddBuilder) getIdentifier(node *Node) string {
 	if node == nil {
 		return ""
@@ -139,6 +159,7 @@ func (self *RobddBuilder) getIdentifier(node *Node) string {
 	}
 }
 
+// generates the javascript bdd tree representation recursively for the given node
 func (self *RobddBuilder) StringRecursive(n *Node) string {
 	if n == nil || (n.edge[0] == nil && n.edge[1] == nil) {
 		return ""
@@ -154,6 +175,8 @@ func (self *RobddBuilder) StringRecursive(n *Node) string {
 	return s
 }
 
+// generates the javascript bdd tree representation recursively for the base of the
+// bdd builder. Adds the whole draw function in JS
 func (self *RobddBuilder) String() string {
 	s := `window.onload = function() {
 	var g = new Graph();
@@ -168,6 +191,7 @@ func (self *RobddBuilder) String() string {
 	return s
 }
 
+// Checks if two nodes and it's subnodes (the whole bdd) equals the given
 func (first *Node) equals(second *Node) bool {
 	if first == nil && second == nil {
 		return true
@@ -177,6 +201,7 @@ func (first *Node) equals(second *Node) bool {
 	return false
 }
 
+// Data structure to store the bdd builder
 type RobddBuilder struct {
 	creationHash NodesHash
 	creationHashMutex sync.Mutex
@@ -189,10 +214,12 @@ type RobddBuilder struct {
 	bdd *Node
 }
 
+// Checks if the given node is a final node or not
 func (self *Node) isFinal() bool {
 	return self.id == 0 || self.id == 1
 }
 
+// Returns the node variable ordering of the given element
 func (self *RobddBuilder) getVarForEl(element *Element) int {
 	for i, el := range self.inputs {
 		if el == element {
@@ -202,6 +229,11 @@ func (self *RobddBuilder) getVarForEl(element *Element) int {
 	return 0
 }
 
+// Generic apply method for a bdd as mentioned in
+// https://www.cs.utexas.edu/~isil/cs389L/bdd.pdf and
+// https://software.intel.com/en-us/articles/multicore-enabling-a-binary-decision-diagram-algorithm
+// Here the actual parallelization happens. The given logical operation is applied to the given nodes
+// x and y and the resulting node is transferred through a channel to allow parallelization.
 func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node, result chan *Node) {
 	u := new(Node)
 	if x.isFinal() && y.isFinal() {
@@ -230,6 +262,7 @@ func (self *RobddBuilder) apply(op func(bool, bool) bool, x *Node, y *Node, resu
 	result <- u
 }
 
+// Apply a logical not to a bdd by inverting the leaves recursivley
 func (self *RobddBuilder) applyNot(x *Node) *Node {
 	if x.isFinal() {
 		if x == self.bddTrue {
@@ -241,6 +274,8 @@ func (self *RobddBuilder) applyNot(x *Node) *Node {
 	return self.mk(x.variable, self.applyNot(x.edge[0]), self.applyNot(x.edge[1]))
 }
 
+// top level build function that initializes the BDD and builds
+// the bdd for the given element in the given model
 func (self *RobddBuilder) build(model *Model, node *Element) *Node {
 	self.bddFalse = createNode(0, nil, nil)
 	self.bddTrue = createNode(1, nil, nil)
@@ -255,6 +290,10 @@ func (self *RobddBuilder) build(model *Model, node *Element) *Node {
 	return self.bdd
 }
 
+// BDD mk function
+// refer https://www.cs.utexas.edu/~isil/cs389L/bdd.pdf
+// Creates a variable with the given order and low and high nodes if it does
+// not already exist
 func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 	if low == high {
 		return low
@@ -269,6 +308,7 @@ func (self *RobddBuilder) mk(variable int, low *Node, high *Node) *Node {
 	return n
 }
 
+// One element can have multiple inputs so the evaluation method is applied to each of the inputs recursively
 func (self *RobddBuilder) buildRecursiveApplyToInputs(op func(bool, bool) bool, element *Element) *Node {
 	node := self.buildRecursive(element.inputs[0])
 	nodeResult := make(chan *Node, 1)
@@ -279,6 +319,7 @@ func (self *RobddBuilder) buildRecursiveApplyToInputs(op func(bool, bool) bool, 
 	return node
 }
 
+// Builds the bdd based on the given element recursively
 func (self *RobddBuilder) buildRecursive(element *Element) *Node {
 	for _, el := range element.inputs {
 		self.buildRecursive(el)
@@ -296,6 +337,7 @@ func (self *RobddBuilder) buildRecursive(element *Element) *Node {
 	return nil
 }
 
+// Adds a new variable with the given variable order to the BDD
 func (self *RobddBuilder) addVar(variable int) *Node {
 	if variable >= self.bddTrue.variable {
 		self.bddTrue.variable = variable + 1
@@ -305,6 +347,9 @@ func (self *RobddBuilder) addVar(variable int) *Node {
 	}
 	return self.mk(variable, self.bddFalse, self.bddTrue)
 }
+
+// Actual processing of the bdd. Reads the trace file, parses it, generates the bdd based
+// on the selected input and writes it to the JS file
 func proc() {
 	b, errIn := ioutil.ReadFile(os.Args[1])
 	if errIn != nil {
@@ -316,13 +361,10 @@ func proc() {
 	start := time.Now()
 	model = pars(string(b))
 	fmt.Println(time.Since(start))
-	//model.outputs[0].print()
 
 	for i, el := range model.outputs {
 		fmt.Println(i, ": ", len(model.getAllInputs(el)))
 	}
-
-	//	model.outputs[43].print()
 
 
 	fmt.Println()
@@ -336,17 +378,23 @@ func proc() {
 	}
 	bdd.build(model, model.outputs[index])
 	fmt.Println("built in ", time.Since(start))
-	fmt.Println("number of collisions:", numberOfCollisions)
+	fmt.Println("number of collisions:", bdd.creationHash.numberOfCollisions)
 
-	/*d1 := []byte(bdd.String())
-	errOut := ioutil.WriteFile("/home/jan/Documents/Uni/WiSe17/TI1_Vertiefung/logicmerger/graphviz/graph.js", d1, 0644)
+	d1 := []byte(bdd.String())
+	errOut := ioutil.WriteFile(os.Args[3], d1, 0644)
 	if errOut != nil {
 		fmt.Print(errOut)
-	}*/
+	}
 }
 
 var cpuprofile = flag.String("cpuprofile", "./prof", "write cpu profile to `file`")
 
+// Main function setting up the profiler and calling the actual processing function.
+// Three arguments are taken:
+// 1) The path to the input file
+// 2) The index of the output to pars
+// 3) The path to the js file to write the BDD to
+// example:
 func main() {
 	flag.Parse()
 	if *cpuprofile != "" {
@@ -359,8 +407,7 @@ func main() {
 		}
 		defer pprof.StopCPUProfile()
 	}
-	runtime.GOMAXPROCS(1048)
-	fmt.Println(runtime.NumCPU())
+	runtime.GOMAXPROCS(8)
+	fmt.Println("Max num of cores: ", runtime.NumCPU())
 	proc()
-
 }

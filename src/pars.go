@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 )
 
+// Defines all possible elementtypes (boolean operations)
 type ElementType int
 const (
 	IN ElementType = iota
@@ -19,6 +20,8 @@ const (
 	XOR
 )
 
+// One element represents one boolean operation (one line) in the trace file.
+// One element can have multiple inputs
 type Element struct {
 	name string
 	elType ElementType
@@ -28,22 +31,29 @@ type Element struct {
 
 const ELEMENTHASH_SIZE = 10000
 
+// Elements need to be hashed while they are parsed so that elements that already
+// exists are not created again and that already parsed elements can be easily
+// accessed
 type ElementHash struct {
 	el *Element
 	next *ElementHash
 }
 
+// The elements are stored in an array of ElementHash, so if there is a collision,
+// the elements will be chained.
 type ElementsHash struct {
 	elements [ELEMENTHASH_SIZE]*ElementHash
 	amount int
 }
 
+// Generate a hash value for a string (the name of the element)
 func hashElement(s string) int {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return int(h.Sum32()) % ELEMENTHASH_SIZE
 }
 
+// get an element from the hash based on it's string.
 func (h *ElementsHash) get(s string) *Element {
 	n := h.elements[hashElement(s)]
 	if n == nil {
@@ -58,6 +68,7 @@ func (h *ElementsHash) get(s string) *Element {
 	return n.el
 }
 
+// Adds an element to the hashtable, also if it already exists
 func (h *ElementsHash) add(t *Element) {
 	index := hashElement(t.name)
 	elHashEntry := &ElementHash{t, nil}
@@ -73,23 +84,7 @@ func (h *ElementsHash) add(t *Element) {
 	h.amount ++
 }
 
-func deepCopy(element *Element) *Element {
-	if element == nil {
-		return nil
-	}
-
-	copyEl := new(Element)
-	copyEl.name = element.name
-	copyEl.val = element.val
-	copyEl.elType = element.elType
-	copyEl.inputs = make([]*Element, len(element.inputs))
-
-	for i, input := range element.inputs {
-		copyEl.inputs[i] = deepCopy(input)
-	}
-	return copyEl
-}
-
+// Recursively calculates the boolean value of an element based on it's input values
 func (self *Element) evalInputs(op func(bool, bool) bool) bool {
 	val := self.inputs[0].eval()
 	for i := 1; i < len(self.inputs); i++ {
@@ -98,6 +93,7 @@ func (self *Element) evalInputs(op func(bool, bool) bool) bool {
 	return val
 }
 
+// evaluates the current element (applys the logic operation) based on it's type
 func (self *Element) eval() bool {
 	switch self.elType {
 	case IN:
@@ -112,6 +108,8 @@ func (self *Element) eval() bool {
 	return self.val
 }
 
+// Data structure that keeps the whole TRACE file, consisting of an array of
+// inputs and an array of outputs
 type Model struct {
 	hash ElementsHash
 	name string
@@ -119,6 +117,7 @@ type Model struct {
 	outputs []*Element
 }
 
+// Removes all whitespaces from a string
 // https://stackoverflow.com/questions/32081808/strip-all-whitespace-from-a-string
 func RemoveWhitespaces(str string) string {
 	return strings.Map(func(r rune) rune {
@@ -129,10 +128,13 @@ func RemoveWhitespaces(str string) string {
 	}, str)
 }
 
+// helper to split a string at the literals '=', ',', '(' and ')'
 func SplitElement(r rune) bool {
 	return r == '=' || r == ',' || r == '(' || r == ')'
 }
 
+// Prints the given element recursively to stdout as a tree.
+// The intendation is the initial intendation and should normally initially be 0.
 func (self *Element) printRecursive(intendation int) {
 	for i := 0; i < intendation; i++ {
 		fmt.Print("  ")
@@ -146,11 +148,14 @@ func (self *Element) printRecursive(intendation int) {
 	}
 }
 
+// Top level print function that calls printRecursive with the fixed initial intendation
 func (self *Element) print() {
 	self.printRecursive(0)
 	fmt.Println()
 }
 
+// Recursively collects all unique input of a given element with the help of a hashtable
+// (helper)
 func (self *Element) collectAllInputs(hash *ElementsHash) {
 	if self.elType == IN && hash.get(self.name) == nil {
 		hash.add(self)
@@ -160,6 +165,7 @@ func (self *Element) collectAllInputs(hash *ElementsHash) {
 	}
 }
 
+// Collects all unique inputs of the given element of this model
 func (self *Model) getAllInputs(el *Element) []*Element {
 	hash := ElementsHash{}
 	el.collectAllInputs(&hash)
@@ -175,6 +181,8 @@ func (self *Model) getAllInputs(el *Element) []*Element {
 	return elements
 }
 
+// Top level pars function that takes a string in the TRACE format (white spaces irrelevant)
+// and parses it into a Model Tree
 func pars(s string) *Model {
 	currentParsToken := RemoveWhitespaces(s)
 

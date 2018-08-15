@@ -1,9 +1,10 @@
 Build:
-go main.go pars.go
+cd ./Abgabe/logicmerger/src
+go build main.go pars.go
 
 Execute:
 For example
-./main ../iscas85/iscas85/trace/c17.trace 0 ./graphviz/graph.js
+./main ../../iscas85/iscas85/trace/c17.trace 0 ../graphviz/graph.js
 To build the bdd of the first output of the c17.trace
 
 To view the generated bdd open the ./graphviz/index.html in a browser
